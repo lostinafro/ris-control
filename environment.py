@@ -5,14 +5,17 @@ try:
     import cupy as np
 except ImportError:
     import numpy as np
+
 import argparse
 from scipy.constants import speed_of_light
 from scipy.stats import rice
+
 from os import path
 
 # GLOBAL STANDARD PARAMETERS
 OUTPUT_DIR = cmn.standard_output_dir('ris-oneshot-urllc')
 DATADIR = path.join(path.dirname(__file__), 'data')
+
 # Set parameters
 NUM_EL_X = 10
 CARRIER_FREQ = 3e9            # [Hz]
@@ -82,6 +85,10 @@ class RIS2DEnv(Cluster):
         self.ris.init_std_configurations(self.wavelength, )
 
         # TODO: add the needed attributes
+
+    # @property
+    # def self.ris_array_factor(self):
+    #     return self.ris.array_factor
 
     def set_std_conf_2D(self, index):
         return self.ris.set_std_configuration_2D(self.wavelength, index, bs_pos=self.bs.pos)
