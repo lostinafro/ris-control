@@ -351,6 +351,34 @@ class Cluster:
         self.h_ris = self.ris_array_factor * element_factor * small_fad_ru * np.sqrt(large_fad_ru)
         return self.h_ris
 
+    def return_separate_ris_channel(self):
+        """Build separate part of the end-to-end channel.
+        Working only for narrowband communication (first frequency is taken)
+
+         :return h: will be a K x N matrix where K is the number of users and N the number of RIS elements
+         :return g: will be a 1 x N matrix where N is the number of RIS elements
+         :return phi: will be a N x N diagonal matrix with the phase shift of the RIS on the main diagonal
+        """
+        # PLarge scale fading
+        pl_ru = 10 * self.pl_exponent * np.log10(self.dist_ru) - self.ue.gain - 10 * (self.pl_exponent - 2) * np.log10(self.ref_dist) - 20 * np.log10(self.wavelength / 4 / np.pi)
+        pl_br = 10 * self.pl_exponent * np.log10(self.dist_br) - self.bs.gain - 10 * (self.pl_exponent - 2) * np.log10(self.ref_dist) - 20 * np.log10(self.wavelength / 4 / np.pi)
+        element_factor_ru = 1       # np.sin(self.ue.pos.sph[:, 2]) * np.sin(self.bs.pos.sph[:, 1])[np.newaxis]
+        element_factor_br = 1       # np.sin(self.ue.pos.sph[:, 2]) * np.sin(self.bs.pos.sph[:, 1])[np.newaxis]
+        large_fad_ru = db2lin(-pl_ru).T * element_factor_ru
+        large_fad_br = db2lin(-pl_br).T * element_factor_br
+        # phase shifts
+        phase_shift_ru = np.exp(- 1j * 2 * np.pi / speed_of_light * self.freqs[0] * (self.dist_ru - (self.ue.pos.cartver @ self.ris.el_pos).T)).T
+        phase_shift_br = np.exp(- 1j * 2 * np.pi / speed_of_light * self.freqs[0] * (self.dist_br - self.bs.pos.cartver @ self.ris.el_pos))
+        # Fading
+        small_fad_ru = fading(typ=self.reflective_channel, dim=(self.ue.n, 1))
+        small_fad_br = fading(typ=self.reflective_channel, dim=(1, 1))
+
+        # Overall
+        h = small_fad_ru * np.sqrt(large_fad_ru) * phase_shift_ru
+        g = small_fad_br * np.sqrt(large_fad_br) * phase_shift_br
+        phi = np.diag(self.ris.actual_conf)
+        return h, g, phi
+
     def build_direct_channel(self):
         # Path loss
         pl_bu = 20 * np.log10(4 * np.pi / self.wavelength) - self.bs.gain + self.ue.gain + 10 * self.pl_exponent * np.log10(self.dist_bu)
