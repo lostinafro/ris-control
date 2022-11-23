@@ -377,6 +377,7 @@ class Cluster:
         h = small_fad_ru * np.sqrt(large_fad_ru) * phase_shift_ru
         g = small_fad_br * np.sqrt(large_fad_br) * phase_shift_br
         phi = np.diag(self.ris.actual_conf)
+
         return h, g, phi
 
     def build_direct_channel(self):
