@@ -72,7 +72,8 @@ if __name__ == '__main__':
     h_eq_cb = h_eq_cb.squeeze()
 
     # Compute the SNR of each user when using beam sweeping
-    snr_cb_db = 10 * np.log10(np.abs(h_eq_cb)**2) - NOISE_POWER_dbm
+    sig_pow_cb = np.abs(h_eq_cb) ** 2
+    snr_cb_db = 10 * np.log10(sig_pow_cb) - NOISE_POWER_dbm
 
     # Generate estimation noise
     est_var = (NOISE_POWER/2) / env.ris.num_els
@@ -89,27 +90,31 @@ if __name__ == '__main__':
     h_eq_chest = ((g_rb.conj()[np.newaxis] * Phi_hat) * h_ur).sum(axis=-1)
 
     # Compute the SNR of each user when using CHEST
-    snr_chest_db = 10 * np.log10(np.abs(h_eq_chest)**2) - NOISE_POWER
+    sig_pow_chest = np.abs(h_eq_chest)**2
+    snr_chest_db = 10 * np.log10(sig_pow_chest) - NOISE_POWER_dbm
 
     ##############################
     # Plot
     ##############################
-    fig, ax = plt.subplots()
+    fig, axes = plt.subplots(ncols=2, sharey='all')
 
     # Get CDF for CB
-    x_cdf_cb_db, y_cdf_cb_db = ecdf(snr_cb_db/Phi.shape[0])
-
-    ax.plot(x_cdf_cb_db, y_cdf_cb_db, color='black', label='CB')
+    x_cdf_cb_db, y_cdf_cb_db = ecdf(snr_cb_db)
+    axes[0].plot(x_cdf_cb_db, y_cdf_cb_db, color='black', label='CB')
 
     # Get CDF for CHEST
-    x_cdf_chest_db, y_cdf_chest_db = ecdf(snr_chest_db/env.ris.num_els)
+    x_cdf_chest_db, y_cdf_chest_db = ecdf(snr_chest_db)
+    axes[0].plot(x_cdf_chest_db, y_cdf_chest_db, label=r'CHEST')
 
-    ax.plot(x_cdf_chest_db, y_cdf_chest_db, label=r'CHEST')
+    axes[0].set_xlabel('SNR over noise floor [dB]')
+    axes[0].set_ylabel('ECDF')     #x_cdf_cb_db, y_cdf_cb_db = ecdf(snr_cb_db/Phi.shape[0])
 
-    ax.set_xlabel('normalized SNR over noise floor [dB]')
-    ax.set_ylabel('ECDF') 
+    axes[0].legend()
 
-    ax.legend()
+    axes[1].plot(x_cdf_cb_db / Phi.shape[0], y_cdf_cb_db, color='black')
+    axes[1].plot(x_cdf_chest_db / env.ris.num_els, y_cdf_chest_db)
+
+    axes[1].set_xlabel('norm. SNR over noise floor [dB]')
 
     plt.show()
 
