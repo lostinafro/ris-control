@@ -10,7 +10,7 @@ from os import path
 import scenario.common as cmn
 from environment import RIS2DEnv, command_parser, ecdf
 
-NOISE_POWER_dbm = -94               # [dBm]
+NOISE_POWER_dbm = -94  # [dBm]
 NOISE_POWER = 10**(NOISE_POWER_dbm / 10)
 
 # Parameter for saving datas
@@ -25,7 +25,8 @@ if __name__ == '__main__':
     # Render bool needs to be True to save the data
     # If no arguments are given the standard value are loaded (see environment)
     render, side_x, h, name, dirname = command_parser()
-    side_y = side_x
+    #side_y = side_x
+    cube_length = side_x
     prefix = prefix + name
 
     if render:
@@ -34,14 +35,18 @@ if __name__ == '__main__':
     else:
         filename = ''
 
-    # Generate users
-    x = side_x * np.random.rand(num_users, 1)
-    y = side_y * np.random.rand(num_users, 1)
+    # Drop some users
+    x = cube_length * np.random.rand(num_users, 1) - cube_length / 2
+    y = cube_length / 2 * np.random.rand(num_users, 1)
+    z = cube_length * np.random.rand(num_users, 1) - cube_length / 2
 
-    ue_pos = np.hstack((x, y, np.zeros((num_users, 1))))
+    ue_pos = np.hstack((x, y, z))
 
+    bs_pos = np.array([20, 0, 0])
+    bs_pos = bs_pos[np.newaxis, :]
+    breakpoint()
     # Build environment
-    env = RIS2DEnv(ue_position=ue_pos, sides=np.array([side_x, side_y, h]))
+    env = RIS2DEnv(bs_position=bs_pos, ue_position=ue_pos, sides=np.array([cube_length, cube_length, cube_length]))
     num_conf = env.ris.num_std_configs
 
     # Pre-allocation of variables
