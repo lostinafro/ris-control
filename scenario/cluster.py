@@ -148,7 +148,7 @@ class Cluster:
         if position is None:
             position = self.random_positioning(n)
         elif not np.any(self.check_position(position)):
-            raise ValueError(f'Error in positioning for BS, recheck please.')
+            raise ValueError(f'Error in positioning for BS: outside the boundaries of the cluster (check x and y pos).')
 
         # Append BS
         self.bs = BS(n=n, pos=position, gain=gain, max_pow=max_pow)
@@ -173,7 +173,7 @@ class Cluster:
         if position is None:
             position = self.random_positioning(n)
         elif not np.any(self.check_position(position)):
-            raise ValueError(f'Error in positioning for UEs, recheck please.')
+            raise ValueError(f'Error in positioning for BS: outside the boundaries of the cluster (check x and y pos).')
 
         # Append UEs
         self.ue = UE(n=n, pos=position, gain=gain, max_pow=max_pow)
@@ -203,7 +203,7 @@ class Cluster:
         if position is None:
             position = np.array([0, 0, 0])
         elif not np.any(self.check_position(position)):
-            raise ValueError(f'Error in positioning for RIS, recheck please.')
+            raise ValueError(f'Error in positioning for BS: outside the boundaries of the cluster (check x and y pos).')
         if num_els_x is None:
             num_els_x = 8
         if dist_els_x is None:
