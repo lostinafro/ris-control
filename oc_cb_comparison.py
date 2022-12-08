@@ -8,13 +8,12 @@ import matplotlib.pyplot as plt
 from os import path
 
 import scenario.common as cmn
-from environment import RIS2DEnv, command_parser, ecdf
+from environment import RIS2DEnv, command_parser, ecdf, NOISE_POWER_dBm, OUTPUT_DIR
 
-NOISE_POWER_dbm = -94               # [dBm]
-NOISE_POWER = 10**(NOISE_POWER_dbm / 10)
-
+noise_power = cmn.dbm2watt(NOISE_POWER_dBm)
+tx_power = 1     # Transmit power
 # Parameter for saving datas
-prefix = 'random_users_'
+prefix = '2D_'
 
 # For grid mesh
 num_users = int(1e4)
@@ -24,15 +23,9 @@ if __name__ == '__main__':
     # The following parser is used to impose some data without the need of changing the script (run with -h flag for help)
     # Render bool needs to be True to save the data
     # If no arguments are given the standard value are loaded (see environment)
-    render, side_x, h, name, dirname = command_parser()
+    render, side_x, h, name, datasavedir = command_parser()
     side_y = side_x
     prefix = prefix + name
-
-    if render:
-        # Load previous data if they exist
-        filename = path.join(dirname, f'{prefix}_hris.npz')
-    else:
-        filename = ''
 
     # Generate users
     x = side_x * np.random.rand(num_users, 1)
@@ -46,7 +39,7 @@ if __name__ == '__main__':
 
     # Pre-allocation of variables
     h_ur = np.zeros((num_users, env.ris.num_els), dtype=complex)
-    g_rb = np.zeros((env.ris.num_els), dtype=complex)
+    g_rb = np.zeros(env.ris.num_els, dtype=complex)
     Phi = np.zeros((num_conf, env.ris.num_els, env.ris.num_els), dtype=complex)
 
     # Looping through the configurations (progressbar is only a nice progressbar)
@@ -68,22 +61,21 @@ if __name__ == '__main__':
     g_rb = np.squeeze(g_rb)
 
     # Compute the equivalent channel 
-    h_eq_cb = np.matmul(np.matmul(g_rb.conj().T[np.newaxis, :], Phi)[:, np.newaxis, :, :], h_ur[np.newaxis, :, :, np.newaxis])
-    h_eq_cb = h_eq_cb.squeeze()
+    h_eq_cb = np.matmul(np.matmul(g_rb.conj().T[np.newaxis, :], Phi)[:, np.newaxis, :, :], h_ur[np.newaxis, :, :, np.newaxis]).squeeze()
 
     # Generate some noise
-    var = (NOISE_POWER/2)
+    var = noise_power / 2
     noise_ = np.sqrt(var) * (np.random.randn(num_users) + 1j * np.random.randn(num_users))
 
-    # Compute the SNR of each user when using beam sweeping
-    sig_pow_cb = np.abs(h_eq_cb) ** 2
-    sig_pow_noisy_cb = np.abs(h_eq_cb + noise_) ** 2
+    # Compute the SNR of each user when using CB scheme
+    sig_pow_cb = tx_power * np.abs(h_eq_cb) ** 2
+    sig_pow_noisy_cb = tx_power * np.abs(h_eq_cb + noise_) ** 2
 
-    snr_cb_db = 10 * np.log10(sig_pow_cb) - NOISE_POWER_dbm
-    snr_cb_noisy_db = 10 * np.log10(sig_pow_noisy_cb) - NOISE_POWER_dbm
+    snr_cb_db = 10 * np.log10(sig_pow_cb / noise_power)
+    snr_cb_noisy_db = 10 * np.log10(sig_pow_noisy_cb / noise_power)
 
     # Generate estimation noise
-    est_var = (NOISE_POWER/2) / env.ris.num_els
+    est_var = noise_power / 2 / env.ris.num_els
     est_noise_ = np.sqrt(est_var) * (np.random.randn(num_users, env.ris.num_els) + 1j * np.random.randn(num_users, env.ris.num_els))
 
     # Get estimated channel coefficients
@@ -97,47 +89,44 @@ if __name__ == '__main__':
     h_eq_chest = ((g_rb.conj()[np.newaxis] * Phi_hat) * h_ur).sum(axis=-1)
     h_eq_chest_hat = (Phi_hat * z_hat).sum(axis=-1)
 
-    # Compute the SNR of each user when using CHEST
-    sig_pow_chest = np.abs(h_eq_chest)**2
-    sig_pow_chest_hat = np.abs(h_eq_chest_hat) ** 2
+    # Compute the SNR of each user when using OC
+    sig_pow_oc = tx_power * np.abs(h_eq_chest) ** 2
+    sig_pow_oc_hat = tx_power * np.abs(h_eq_chest_hat) ** 2
 
-    snr_chest_db = 10 * np.log10(sig_pow_chest) - NOISE_POWER_dbm
-    snr_chest_hat_db = 10 * np.log10(sig_pow_chest_hat) - NOISE_POWER_dbm
+    snr_oc_db = 10 * np.log10(sig_pow_oc / noise_power)
+    snr_oc_hat_db = 10 * np.log10(sig_pow_oc_hat / noise_power)
 
     ##############################
     # Plot
     ##############################
-    fig, axes = plt.subplots(ncols=2, sharey='all')
-
     x_cdf_cb_db, y_cdf_cb_db = ecdf(snr_cb_db)
-    axes[0].plot(x_cdf_cb_db, y_cdf_cb_db, linewidth=1.5, color='black', label='CB: true')
-
     x_cdf_cb_noisy_db, y_cdf_cb_noisy_db = ecdf(snr_cb_noisy_db)
+    x_cdf_oc_db, y_cdf_oc_db = ecdf(snr_oc_db)
+    x_cdf_oc_hat_db, y_cdf_oc_hat_db = ecdf(snr_oc_hat_db)
+
+    try:    # explicit conversion to numpy for compatibility reason with cupy
+        x_cdf_cb_db = np.asnumpy(x_cdf_cb_db)
+        y_cdf_cb_db = np.asnumpy(y_cdf_cb_db)
+        x_cdf_cb_noisy_db = np.asnumpy(x_cdf_cb_noisy_db)
+        y_cdf_cb_noisy_db = np.asnumpy(y_cdf_cb_noisy_db)
+        x_cdf_oc_db = np.asnumpy(x_cdf_oc_db)
+        y_cdf_oc_db = np.asnumpy(y_cdf_oc_db)
+        x_cdf_oc_hat_db = np.asnumpy(x_cdf_oc_hat_db)
+        y_cdf_oc_hat_db = np.asnumpy(y_cdf_oc_hat_db)
+    except AttributeError:
+        pass
+
+    fig, axes = plt.subplots(ncols=2, sharey='all', figsize=(12, 4))
+    axes[0].plot(x_cdf_cb_db, y_cdf_cb_db, linewidth=1.5, color='black', label='CB: true')
     axes[0].plot(x_cdf_cb_noisy_db, y_cdf_cb_noisy_db, linewidth=1.5, linestyle='--', color='black', label='CB: noisy')
-
-    x_cdf_chest_db, y_cdf_chest_db = ecdf(snr_chest_db)
-    axes[0].plot(x_cdf_chest_db, y_cdf_chest_db, linewidth=1.5, color='tab:blue', label=r'OC: true')
-
-    x_cdf_chest_hat_db, y_cdf_chest_hat_db = ecdf(snr_chest_hat_db)
-    axes[0].plot(x_cdf_chest_hat_db, y_cdf_chest_hat_db, linewidth=1.5, linestyle='--', color='tab:blue', label=r'OC: estimated')
-
-    axes[0].set_xlabel('SNR over noise floor [dB]')
-    axes[0].set_ylabel('ECDF')     #x_cdf_cb_db, y_cdf_cb_db = ecdf(snr_cb_db/Phi.shape[0])
-
-    axes[0].legend()
+    axes[0].plot(x_cdf_oc_db, y_cdf_oc_db, linewidth=1.5, color='tab:blue', label=r'OC: true')
+    axes[0].plot(x_cdf_oc_hat_db, y_cdf_oc_hat_db, linewidth=1.5, linestyle='--', color='tab:blue',  label=r'OC: estimated')
 
     axes[1].plot(x_cdf_cb_db / Phi.shape[0], y_cdf_cb_db, color='black')
-    axes[1].plot(x_cdf_chest_db / env.ris.num_els, y_cdf_chest_db)
+    axes[1].plot(x_cdf_oc_db / env.ris.num_els, y_cdf_oc_db)
 
-    axes[1].set_xlabel('norm. SNR over noise floor [dB]')
-
-    plt.tight_layout()
-
-    plt.show()
-
-
-    # saving data
-    if render:
-        np.savez(filename,  h_ris=h_ris)
-    print('\t...DONE')
+    # This is a wrap function to show or save plots conveniently
+    cmn.printplot(fig, axes, render, filename=f'{prefix}' + 'oc_vs_cb', dirname=OUTPUT_DIR,
+                  labels=['SNR over noise floor [dB]', 'norm. SNR over noise floor [dB]', 'ECDF'],
+                  orientation='horizontal')
 
