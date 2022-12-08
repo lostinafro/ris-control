@@ -288,9 +288,9 @@ def printplot(fig: plt.Figure = None,
                 for i, a in enumerate(ax):
                     a.set_ylabel(labels[i+1])
             else:   # Horizontal
-                ax[0].set_ylabel(labels[1])
+                ax[0].set_ylabel(labels[-1])
                 for i, a in enumerate(ax):
-                    a.set_xlabel(labels[0])
+                    a.set_xlabel(labels[i])
         except (TypeError, IndexError):
             pass
         # Keep the title for more than one figure
@@ -299,6 +299,8 @@ def printplot(fig: plt.Figure = None,
                 a.set_title(title[i])
         except IndexError:
             ax[0].set_title(title)
+        except TypeError:
+            pass
         if not render:
             fig.show()
             plt.close(fig=fig)

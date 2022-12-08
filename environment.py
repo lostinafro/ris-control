@@ -13,14 +13,15 @@ from scipy.stats import rice
 from os import path
 
 # GLOBAL STANDARD PARAMETERS
-OUTPUT_DIR = cmn.standard_output_dir('ris-oneshot-urllc')
+# The following is a wrapper that generates a directory where automatically save plots
+OUTPUT_DIR = cmn.standard_output_dir('ris-protocol')
 DATADIR = path.join(path.dirname(__file__), 'data')
 
 # Set parameters
 NUM_EL_X = 10
 CARRIER_FREQ = 3e9            # [Hz]
 BANDWIDTH = 180e3               # [Hz]
-NOISE_POWER = -94               # [dBm]
+NOISE_POWER_dBm = -94               # [dBm]
 SIDE = 20                       # [m] side of the room
 H = 25.                         # [m] height of the room
 BS_POS = np.array([[-5, 5, 5]]) # Standard BS positioning
@@ -55,7 +56,7 @@ class RIS2DEnv(Cluster):
                  ris_num_els: int = NUM_EL_X,
                  carrier_frequency: float = CARRIER_FREQ,
                  bandwidth: float = BANDWIDTH,
-                 noise_power: float = NOISE_POWER,
+                 noise_power: float = NOISE_POWER_dBm,
                  rbs: int = 1,
                  rng: np.random.RandomState = None):
         # Init parent class
