@@ -5,8 +5,6 @@ except ImportError:
 
 import matplotlib.pyplot as plt
 
-from os import path
-
 import scenario.common as cmn
 from environment import RIS2DEnv, command_parser, ecdf, OUTPUT_DIR, NOISE_POWER_dBm
 
@@ -14,7 +12,7 @@ noise_power = cmn.dbm2watt(NOISE_POWER_dBm)
 tx_power = 1     # Transmit power
 
 # Parameter for saving datas
-prefix = '3d_'
+prefix = '3D_'
 
 # For grid mesh
 num_users = int(1e4)
@@ -24,7 +22,8 @@ if __name__ == '__main__':
     # The following parser is used to impose some data without the need of changing the script (run with -h flag for help)
     # Render bool needs to be True to save the data
     # If no arguments are given the standard value are loaded (see environment)
-    render, side_x, h, name, savedatadir = command_parser()
+    # datasavedir should be used to save numpy arrays
+    render, side_x, h, name, datasavedir = command_parser()
     #side_y = side_x
     cube_length = side_x
     prefix = prefix + name
@@ -42,7 +41,7 @@ if __name__ == '__main__':
 
     # Pre-allocation of variables
     h_ur = np.zeros((num_users, env.ris.num_els), dtype=complex)
-    g_rb = np.zeros((env.ris.num_els), dtype=complex)
+    g_rb = np.zeros(env.ris.num_els, dtype=complex)
     Phi = np.zeros((num_conf, env.ris.num_els, env.ris.num_els), dtype=complex)
 
     # Looping through the configurations (progressbar is only a nice progressbar)
@@ -124,13 +123,13 @@ if __name__ == '__main__':
     axes[0].plot(x_cdf_cb_db, y_cdf_cb_db, linewidth=1.5, color='black', label='CB: true')
     axes[0].plot(x_cdf_cb_noisy_db, y_cdf_cb_noisy_db, linewidth=1.5, linestyle='--', color='black', label='CB: noisy')
     axes[0].plot(x_cdf_oc_db, y_cdf_oc_db, linewidth=1.5, color='tab:blue', label=r'OC: true')
-    axes[0].plot(x_cdf_oc_hat_db, y_cdf_oc_hat_db, linewidth=1.5, linestyle='--', color='tab:blue',
-                 label=r'OC: estimated')
+    axes[0].plot(x_cdf_oc_hat_db, y_cdf_oc_hat_db, linewidth=1.5, linestyle='--', color='tab:blue', label=r'OC: estimated')
 
     axes[1].plot(x_cdf_cb_db / Phi.shape[0], y_cdf_cb_db, color='black')
     axes[1].plot(x_cdf_oc_db / env.ris.num_els, y_cdf_oc_db)
 
-    # This is a wrap function to show or save plots convieniently
+    # This is a wrap function to show or save plots conveniently
+    # If render == True this will save the data in ris-protocol/plots/{dateoftoday}/
     cmn.printplot(fig, axes, render, filename=f'{prefix}' + 'oc_vs_cb', dirname=OUTPUT_DIR,
                   labels=['SNR over noise floor [dB]', 'norm. SNR over noise floor [dB]', 'ECDF'],
                   orientation='horizontal')
