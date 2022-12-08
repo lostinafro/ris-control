@@ -287,10 +287,16 @@ def printplot(fig: plt.Figure = None,
                 ax[-1].set_xlabel(labels[0])
                 for i, a in enumerate(ax):
                     a.set_ylabel(labels[i+1])
-            else:   # Horizontal
+            elif orientation == 'horizontal':
                 ax[0].set_ylabel(labels[-1])
                 for i, a in enumerate(ax):
                     a.set_xlabel(labels[i])
+            else:   # No particular orientation
+                i = 0
+                for a in ax:
+                    a.set_xlabel(labels[i])
+                    a.set_ylabel(labels[i + 1])
+                    i += 2
         except (TypeError, IndexError):
             pass
         # Keep the title for more than one figure
