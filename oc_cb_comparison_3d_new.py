@@ -85,6 +85,8 @@ if __name__ == '__main__':
 
     fig, axes = plt.subplots(ncols=2, sharey='all', figsize=(12, 4))
 
+    cmap = plt.get_cmap("tab10")
+
     ##############################
     # CHEST-based
     ##############################
@@ -98,7 +100,7 @@ if __name__ == '__main__':
     z_eq = h_ur.conj() * g_rb[np.newaxis, :]
     z_hat = z_eq + est_noise_
 
-    # Get estimated Phi
+    # Get estimated Phi (the one that maximizes the SNR)
     Phi_hat = np.exp(-1j*np.angle(z_hat))
 
     # Compute equivalent channel
@@ -116,10 +118,10 @@ if __name__ == '__main__':
     x_cdf_oc_db, y_cdf_oc_db = ecdf(snr_oc_db)
     x_cdf_oc_hat_db, y_cdf_oc_hat_db = ecdf(snr_oc_hat_db)
 
-    axes[0].plot(x_cdf_oc_db, y_cdf_oc_db, linewidth=1.5, color='tab:blue', label=r'OC: true')
-    axes[0].plot(x_cdf_oc_hat_db, y_cdf_oc_hat_db, linewidth=1.5, linestyle='--', color='tab:blue', label=r'OC: estimated')
+    axes[0].plot(x_cdf_oc_db, y_cdf_oc_db, linewidth=1.5, color='black', label=r'OC: true')
+    axes[0].plot(x_cdf_oc_hat_db, y_cdf_oc_hat_db, linewidth=1.5, linestyle='--', color='black', label=r'OC: estimated')
 
-    axes[1].plot(x_cdf_oc_db / env.ris.num_els, y_cdf_oc_db, linewidth=1.5, linestyle='--', color='tab:blue')
+    axes[1].plot(x_cdf_oc_db / env.ris.num_els, y_cdf_oc_db, linewidth=1.5, linestyle='--', color='black')
 
     ##############################
     # Codebook-based
@@ -167,10 +169,12 @@ if __name__ == '__main__':
         # except AttributeError:
         #     pass
 
-        axes[0].plot(x_cdf_cb_db, y_cdf_cb_db, linewidth=1.5, label='CB: true')
-        axes[0].plot(x_cdf_cb_noisy_db, y_cdf_cb_noisy_db, linewidth=1.5, linestyle='--', label='CB: noisy')
+        axes[0].plot(x_cdf_cb_db, y_cdf_cb_db, linewidth=1.5, color=cmap(cc), label='CB: true, $N=' + str(number_config) + '$')
+        axes[0].plot(x_cdf_cb_noisy_db, y_cdf_cb_noisy_db, linewidth=1.5, color=cmap(cc), linestyle='--', label='CB: noisy, $N=' + str(number_config) + '$')
 
-        axes[1].plot(x_cdf_cb_db / number_config, y_cdf_cb_db)
+        axes[1].plot(x_cdf_cb_db / number_config, y_cdf_cb_db, color=cmap(cc))
+
+    axes[0].legend()
 
     plt.show()
 
