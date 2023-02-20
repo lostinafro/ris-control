@@ -10,7 +10,8 @@ from environment import RIS2DEnv, command_parser, ecdf, NOISE_POWER_dBm, OUTPUT_
 
 noise_power = cmn.dbm2watt(NOISE_POWER_dBm)
 tx_power = 1     # Transmit power
-# Parameter for saving datas
+
+# Parameter for saving data
 prefix = '2D_'
 
 # For grid mesh
@@ -18,10 +19,9 @@ num_users = int(1e4)
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    # The following parser is used to impose some data without the need of changing the script (run with -h flag for help)
-    # Render bool needs to be True to save the data
-    # If no arguments are given the standard value are loaded (see environment)
-    # datasavedir should be used to save numpy arrays
+    # The following parser is used to impose some data without the need of changing the script (run with -h flag for
+    # help) Render bool needs to be True to save the data If no arguments are given the standard value are loaded (
+    # see environment) datasavedir should be used to save numpy arrays
     render, side_x, h, name, datasavedir = command_parser()
     side_y = side_x
     prefix = prefix + name
@@ -124,9 +124,14 @@ if __name__ == '__main__':
     axes[1].plot(x_cdf_cb_db / Phi.shape[0], y_cdf_cb_db, color='black')
     axes[1].plot(x_cdf_oc_db / env.ris.num_els, y_cdf_oc_db)
 
+    axes[0].legend()
+
+    plt.show()
+
+
     # This is a wrap function to show or save plots conveniently
     # If render == True this will save the data in ris-protocol/plots/{dateoftoday}/
-    cmn.printplot(fig, axes, render, filename=f'{prefix}' + 'oc_vs_cb', dirname=OUTPUT_DIR,
-                  labels=['SNR over noise floor [dB]', 'norm. SNR over noise floor [dB]', 'ECDF'],
-                  orientation='horizontal')
+    #cmn.printplot(fig, axes, render, filename=f'{prefix}' + 'oc_vs_cb', dirname=OUTPUT_DIR,
+                  #labels=['SNR over noise floor [dB]', 'norm. SNR over noise floor [dB]', 'ECDF'],
+                  #orientation='horizontal')
 
