@@ -15,6 +15,11 @@ rc('font', **{'family': 'sans serif', 'serif': ['Computer Modern']})
 rc('text', usetex=True)
 
 ##################################################
+# Parameters
+##################################################
+
+# Seed random generator
+np.random.seed(42)
 
 # Define transmit power [mW]
 tx_power = 100
@@ -25,8 +30,32 @@ noise_power = cmn.dbm2watt(NOISE_POWER_dBm)
 # Define number of pilots
 num_pilots = 1
 
+# Period
+T = 1/14
+
+# Number of TTIs
+n_ttis = 200
+
+# Total tau
+total_tau = T * n_ttis
+
+# Define CHEST algorithmic cost
+chest_time_cost = 5
+
 # Parameter for saving datas
-prefix = '3D_'
+prefix = 'data/opt_ce'
+
+# Setup option
+setup = 'ob-cc'
+#setup = 'ib-no'
+#setup = 'ib-wf'
+
+if setup == 'ob-cc':
+    tau_setup = T
+elif setup == 'ib-no':
+    tau_setup = 2 * T
+else:
+    tau_setup = 3 * T
 
 # For grid mesh
 num_users = int(1e3)
@@ -106,11 +135,6 @@ if __name__ == '__main__':
     # Squeeze out
     g_rb = np.squeeze(g_rb)
 
-    # Prepare figure
-    fig, ax = plt.subplots()
-
-    cmap = plt.get_cmap("tab10")
-
     ##############################
     # OPT-CE
     ##############################
@@ -120,70 +144,75 @@ if __name__ == '__main__':
     est_noise_ = np.sqrt(est_var) * noise_
 
     # Get estimated channel coefficients for the equivalent channel
-    z_eq = h_ur.conj() * g_rb[np.newaxis, :]
+    z_eq = h_ur * g_rb[np.newaxis, :]
     z_hat = z_eq + est_noise_
 
     # Get estimated/best configuration (the one that maximizes the SNR)
-    Phi_hat = np.exp(-1j*np.angle(z_hat))
+    Phi_true = np.exp(-1j * np.angle(z_eq))
+    Phi_hat = np.exp(-1j * np.angle(z_hat))
 
     # Compute equivalent channel
-    h_eq_chest = ((g_rb.conj()[np.newaxis, :] * Phi_hat) * h_ur).sum(axis=-1)
+    h_eq_chest = (Phi_true * z_eq).sum(axis=-1)
     h_eq_chest_hat = (Phi_hat * z_hat).sum(axis=-1)
 
     # Compute the SNR of each user when using OPT-CE
     sig_pow_oc = tx_power * np.abs(h_eq_chest) ** 2
     sig_pow_oc_hat = tx_power * np.abs(h_eq_chest_hat) ** 2
 
-    snr_oc_db = 10 * np.log10(sig_pow_oc / noise_power)
-    snr_oc_hat_db = 10 * np.log10(sig_pow_oc_hat / noise_power)
+    snr_oc = sig_pow_oc / noise_power
+    snr_oc_hat = sig_pow_oc_hat / noise_power
+
+    snr_oc_db = 10 * np.log10(snr_oc)
+    snr_oc_hat_db = 10 * np.log10(snr_oc_hat)
+
+    # Compute rate
+    rate_oc = np.log2(1 + snr_oc)
+    rate_oc_hat = np.log2(1 + snr_oc_hat)
+
+    # Pre-log term
+    tau_alg = (env.ris.num_els + chest_time_cost) * T
+    prelog_term = 1 - (tau_setup + tau_setup + tau_alg)/total_tau
+
+    rate_opt_ce = prelog_term * rate_oc_hat
+
+    ##################################################
+    # Save data
+    ##################################################
+    np.savez(prefix + '_' + setup + str('.npz'),
+             snr=snr_oc_hat,
+             rate=rate_opt_ce
+             )
+
+    ##################################################
+    # Plot
+    ##################################################
+    fig, axes = plt.subplots(nrows=2)
 
     # Get CDF
     x_cdf_oc_db, y_cdf_oc_db = ecdf(snr_oc_db)
     x_cdf_oc_hat_db, y_cdf_oc_hat_db = ecdf(snr_oc_hat_db)
 
-    ax.plot(x_cdf_oc_db, y_cdf_oc_db, linewidth=1.5, color='black', label=r'OPT-CE: true')
-    ax.plot(x_cdf_oc_hat_db, y_cdf_oc_hat_db, linewidth=1.5, linestyle='--', color='black', label=r'OPT-CE: estimated')
+    axes[0].plot(x_cdf_oc_db, y_cdf_oc_db, linewidth=1.5, color='black', label=r'OPT-CE: true')
+    axes[0].plot(x_cdf_oc_hat_db, y_cdf_oc_hat_db, linewidth=1.5, linestyle='--', color='black',
+                 label=r'OPT-CE: estimated')
 
-    ##############################
-    # Codebook-based
-    ##############################
+    axes[0].set_xlabel('SNR [dB]')
+    axes[0].set_ylabel('CDF')
 
-    # Codebook selection
-    codebook = DFT_norm.copy()
-
-    # Compute the equivalent channel
-    h_eq_cb = (g_rb.conj()[np.newaxis, np.newaxis, :] * codebook[np.newaxis, :, :] * h_ur[:, np.newaxis, :]).sum(axis=-1)
-
-    # Generate some noise
-    var = noise_power / num_pilots / 2
-    bsw_noise_ = np.sqrt(var) * noise_
-
-    # Compute the SNR of each user when using CB scheme
-    sig_pow_cb = tx_power * np.abs(h_eq_cb) ** 2
-    sig_pow_noisy_cb = np.abs(np.sqrt(tx_power) * h_eq_cb + bsw_noise_) ** 2
-
-    snr_cb_db = 10 * np.log10(sig_pow_cb / noise_power)
-    snr_cb_noisy_db = 10 * np.log10(sig_pow_noisy_cb / noise_power)
+    axes[0].legend()
 
     # Get CDF
-    x_cdf_cb_db, y_cdf_cb_db = ecdf(snr_cb_db)
-    x_cdf_cb_noisy_db, y_cdf_cb_noisy_db = ecdf(snr_cb_noisy_db)
+    x_cdf_oc_db, y_cdf_oc_db = ecdf(rate_oc)
+    x_cdf_oc_hat_db, y_cdf_oc_hat_db = ecdf(rate_oc_hat)
 
-    ax.plot(x_cdf_cb_db, y_cdf_cb_db, linewidth=1.5, color='tab:blue', label='CB-BSW: true, $N=' + str(env.ris.num_els) + '$')
-    ax.plot(x_cdf_cb_noisy_db, y_cdf_cb_noisy_db, linewidth=1.5, color='tab:blue', linestyle='--',
-            label=r'CB-BSW: noisy, $C_{\mathrm{CB}}=' + str(env.ris.num_els) + '$')
+    axes[1].plot(x_cdf_oc_db, y_cdf_oc_db, linewidth=1.5, color='black', label=r'OPT-CE: true')
+    axes[1].plot(x_cdf_oc_hat_db, y_cdf_oc_hat_db, linewidth=1.5, linestyle='--', color='black',
+                 label=r'OPT-CE: estimated')
 
-    ax.set_xlabel('SNR [dB]')
-    ax.set_ylabel('CDF')
-
-    ax.legend()
+    axes[1].set_xlabel('Rate [bit/Hz/s]')
+    axes[1].set_ylabel('CDF')
 
     plt.tight_layout()
 
-    plt.show()
 
-    # # This is a wrap function to show or save plots conveniently
-    # # If render == True this will save the data in ris-protocol/plots/{dateoftoday}/
-    # cmn.printplot(fig, axes, render, filename=f'{prefix}' + 'oc_vs_cb', dirname=OUTPUT_DIR,
-    #               labels=['SNR over noise floor [dB]', 'norm. SNR over noise floor [dB]', 'ECDF'],
-    #               orientation='horizontal')
+    #plt.show()
