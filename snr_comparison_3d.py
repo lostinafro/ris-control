@@ -16,8 +16,14 @@ rc('text', usetex=True)
 
 ##################################################
 
+# Define transmit power [mW]
+tx_power = 100
+
+# Get noise power
 noise_power = cmn.dbm2watt(NOISE_POWER_dBm)
-tx_power = 1     # Transmit power
+
+# Define number of pilots
+num_pilots = 1
 
 # Parameter for saving datas
 prefix = '3D_'
@@ -63,6 +69,9 @@ if __name__ == '__main__':
     env = RIS2DEnv(bs_position=bs_pos, ue_position=ue_pos, sides=200 * np.ones(3))
     # TODO: this sides is not being used, I am just putting a random value to ensure that the tests pass.
 
+    # Generate noise realizations
+    noise_ = (np.random.randn(num_users, env.ris.num_els) + 1j * np.random.randn(num_users, env.ris.num_els))
+
     ##############################
     # Generate DFT codebook of configurations
     ##############################
@@ -107,9 +116,8 @@ if __name__ == '__main__':
     ##############################
 
     # Generate estimation noise
-    est_var = noise_power / 2 / env.ris.num_els
-    est_noise_ = np.sqrt(est_var) * (
-                np.random.randn(num_users, env.ris.num_els) + 1j * np.random.randn(num_users, env.ris.num_els))
+    est_var = noise_power / env.ris.num_els / tx_power / num_pilots / 2
+    est_noise_ = np.sqrt(est_var) * noise_
 
     # Get estimated channel coefficients for the equivalent channel
     z_eq = h_ur.conj() * g_rb[np.newaxis, :]
@@ -147,12 +155,12 @@ if __name__ == '__main__':
     h_eq_cb = (g_rb.conj()[np.newaxis, np.newaxis, :] * codebook[np.newaxis, :, :] * h_ur[:, np.newaxis, :]).sum(axis=-1)
 
     # Generate some noise
-    var = noise_power / 2
-    noise_ = np.sqrt(var) * (np.random.randn(num_users, env.ris.num_els) + 1j * np.random.randn(num_users, env.ris.num_els))
+    var = noise_power / num_pilots / 2
+    bsw_noise_ = np.sqrt(var) * noise_
 
     # Compute the SNR of each user when using CB scheme
     sig_pow_cb = tx_power * np.abs(h_eq_cb) ** 2
-    sig_pow_noisy_cb = tx_power * np.abs(h_eq_cb + noise_) ** 2
+    sig_pow_noisy_cb = tx_power * np.abs(h_eq_cb + bsw_noise_) ** 2
 
     snr_cb_db = 10 * np.log10(sig_pow_cb / noise_power)
     snr_cb_noisy_db = 10 * np.log10(sig_pow_noisy_cb / noise_power)
