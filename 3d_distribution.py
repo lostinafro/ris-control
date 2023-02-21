@@ -24,12 +24,12 @@ def ecdf(a):
     cusum = np.cumsum(counts)
     return x, cusum / cusum[-1]
 
+
 # Define cube length
-cube_length = 1
+cube_length = 20
 
 # Define number of realizations
 num_realizations = 100000
-
 
 ##################################################
 # Method 1 - uniform at random
@@ -41,7 +41,7 @@ num_realizations = 100000
 positions = np.zeros((3, num_realizations))
 
 # Generate positions
-positions[0] = cube_length * np.random.rand(num_realizations) - cube_length/2
+positions[0] = cube_length * np.random.rand(num_realizations) - cube_length
 positions[1] = cube_length/2 * np.random.rand(num_realizations)
 positions[2] = cube_length * np.random.rand(num_realizations) - cube_length/2
 
@@ -90,5 +90,7 @@ ax[2].set_ylabel('CDF')
 ax[0].set_title('Method 1')
 
 plt.tight_layout()
+
+bs_pos = np.array([[20, 0, 0]])
 
 plt.show()
