@@ -308,11 +308,13 @@ def printplot(fig: plt.Figure = None,
         except TypeError:
             pass
         if not render:
+            fig.tight_layout()
             fig.show()
             plt.close(fig=fig)
         else:
             filename = os.path.join(dirname, filename)
-            fig.savefig(filename + '.jpg', dpi=300)
+            fig.tight_layout()
+            fig.savefig(filename + '.jpg', dpi=300, bbox_inches='tight')
             tikzplotlib.save(filename + '.tex')
 
 
