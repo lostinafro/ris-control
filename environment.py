@@ -26,6 +26,13 @@ SIDE = 20                       # [m] side of the room
 H = 25.                         # [m] height of the room
 BS_POS = np.array([[-5, 5, 5]]) # Standard BS positioning
 
+T = 1/14            # [ms] time of a TTI
+N_TTIs = 140        # coherence block (10 ms)
+TX_POW_dBm = 24     # [dBm] transmit power
+try:
+    TAU = T * np.arange(70, 730, 8.75).get()
+except AttributeError:
+    TAU = T * np.arange(70, 1450, 35)
 
 
 # Parser for the test files
@@ -61,7 +68,7 @@ class RIS2DEnv(Cluster):
                  rng: np.random.RandomState = None):
         # Init parent class
         super().__init__(shape='box',
-                         sizes=sides,
+                         sizes=np.array(sides),
                          carrier_frequency=carrier_frequency,
                          bandwidth=bandwidth,
                          noise_power=noise_power,
@@ -72,6 +79,7 @@ class RIS2DEnv(Cluster):
         self._int_tested = 25       # attribute related to the number of integers under frequency_scheduling
         try:
             bs_position = np.asarray(bs_position)
+            ue_position = np.array(ue_position)
         except AttributeError:
             pass
         # Geometry and scenario
@@ -187,4 +195,7 @@ def ecdf(a):
     """
     x, counts = np.unique(a, return_counts=True)
     cusum = np.cumsum(counts)
-    return x, cusum / cusum[-1]
+    try:
+        return np.asnumpy(x), np.asnumpy(cusum / cusum[-1])
+    except AttributeError:
+        return x, cusum / cusum[-1]

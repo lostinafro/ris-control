@@ -1,12 +1,9 @@
-try:
-    import cupy as np
-except ImportError:
-    import numpy as np
+import numpy as np
 
 import matplotlib.pyplot as plt
 
 import scenario.common as cmn
-from environment import RIS2DEnv, command_parser, ecdf, OUTPUT_DIR, NOISE_POWER_dBm
+from environment import RIS2DEnv, command_parser, ecdf, NOISE_POWER_dBm, T, N_TTIs, TX_POW_dBm
 
 from matplotlib import rc
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -22,7 +19,7 @@ rc('text', usetex=True)
 np.random.seed(42)
 
 # Define transmit power [mW]
-tx_power = 100
+tx_power = cmn.dbm2watt(TX_POW_dBm)
 
 # Get noise power
 noise_power = cmn.dbm2watt(NOISE_POWER_dBm)
@@ -30,14 +27,8 @@ noise_power = cmn.dbm2watt(NOISE_POWER_dBm)
 # Define number of pilots
 num_pilots = 1
 
-# Period
-T = 1/14
-
-# Number of TTIs
-n_ttis = 200
-
 # Total tau
-total_tau = T * n_ttis
+total_tau = T * N_TTIs
 
 # Define CHEST algorithmic cost
 chest_time_cost = 5
@@ -46,16 +37,12 @@ chest_time_cost = 5
 prefix = 'data/opt_ce'
 
 # Setup option
-setup = 'ob-cc'
-#setup = 'ib-no'
-#setup = 'ib-wf'
+setups = ['ob-cc', 'ib-no', 'ib-wf']
+# setup = 'ob-cc'
+# setup = 'ib-no'
+# setup = 'ib-wf'
 
-if setup == 'ob-cc':
-    tau_setup = T
-elif setup == 'ib-no':
-    tau_setup = 2 * T
-else:
-    tau_setup = 3 * T
+
 
 # For grid mesh
 num_users = int(1e3)
@@ -99,7 +86,7 @@ if __name__ == '__main__':
     # TODO: this sides is not being used, I am just putting a random value to ensure that the tests pass.
 
     # Generate noise realizations
-    noise_ = (np.random.randn(num_users, env.ris.num_els) + 1j * np.random.randn(num_users, env.ris.num_els))
+    noise_ = (np.random.randn(num_users, env.ris.num_els) + 1j * np.random.randn(num_users, env.ris.num_els)) / np.sqrt(2)
 
     ##############################
     # Generate DFT codebook of configurations
@@ -140,7 +127,7 @@ if __name__ == '__main__':
     ##############################
 
     # Generate estimation noise
-    est_var = noise_power / env.ris.num_els / tx_power / num_pilots / 2
+    est_var = noise_power / env.ris.num_els / tx_power / num_pilots
     est_noise_ = np.sqrt(est_var) * noise_
 
     # Get estimated channel coefficients for the equivalent channel
@@ -171,17 +158,26 @@ if __name__ == '__main__':
 
     # Pre-log term
     tau_alg = (env.ris.num_els + chest_time_cost) * T
-    prelog_term = 1 - (tau_setup + tau_setup + tau_alg)/total_tau
 
-    rate_opt_ce = prelog_term * rate_oc_hat
+    for setup in setups:
+        if setup == 'ob-cc':
+            tau_setup = T
+        elif setup == 'ib-no':
+            tau_setup = 2 * T
+        else:
+            tau_setup = 3 * T
 
-    ##################################################
-    # Save data
-    ##################################################
-    np.savez(prefix + '_' + setup + str('.npz'),
-             snr=snr_oc_hat,
-             rate=rate_opt_ce
-             )
+        prelog_term = 1 - (tau_setup + tau_setup + tau_alg)/total_tau
+
+        rate_opt_ce = prelog_term * rate_oc_hat
+
+        ##################################################
+        # Save data
+        ##################################################
+        np.savez(prefix + '_' + setup + str('.npz'),
+                 snr=snr_oc_hat,
+                 rate=rate_opt_ce
+                 )
 
     ##################################################
     # Plot
