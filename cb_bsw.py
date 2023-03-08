@@ -1,12 +1,9 @@
-try:
-    import cupy as np
-except ImportError:
-    import numpy as np
+import numpy as np
 
 import matplotlib.pyplot as plt
 
 import scenario.common as cmn
-from environment import RIS2DEnv, command_parser, ecdf, OUTPUT_DIR, NOISE_POWER_dBm
+from environment import RIS2DEnv, command_parser, ecdf, NOISE_POWER_dBm, T, N_TTIs, TX_POW_dBm
 
 from matplotlib import rc
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -22,7 +19,7 @@ rc('text', usetex=True)
 np.random.seed(42)
 
 # Define transmit power [mW]
-tx_power = 100
+tx_power = cmn.dbm2watt(TX_POW_dBm)
 
 # Get noise power
 noise_power = cmn.dbm2watt(NOISE_POWER_dBm)
@@ -31,35 +28,21 @@ noise_power = cmn.dbm2watt(NOISE_POWER_dBm)
 num_pilots = 1
 
 # Define minimum SNR
-minimum_snr = 4898.469387755102
-
-# Period
-T = 1/14
-
-# Number of TTIs
-n_ttis = 200
+minimum_snr_dB = 14
+minimum_snr = cmn.db2lin(minimum_snr_dB)
 
 # Total tau
-total_tau = T * n_ttis
+total_tau = T * N_TTIs
 
 # Parameter for saving datas
 prefix = 'data/cb_bsw'
 
 # CB type
 cb_type = 'fixed'
-#cb_type = 'flexible'
+# cb_type = 'flexible'
 
 # Setup option
-setup = 'ob-cc'
-#setup = 'ib-no'
-#setup = 'ib-wf'
-
-if setup == 'ob-cc':
-    tau_setup = T
-elif setup == 'ib-no':
-    tau_setup = 2 * T
-else:
-    tau_setup = 3 * T
+setups = ['ob-cc', 'ib-no', 'ib-wf']
 
 # For grid mesh
 num_users = int(1e3)
@@ -145,21 +128,20 @@ if __name__ == '__main__':
         codebook = DFT_norm.copy()
 
         # Generate noise realizations
-        noise_ = (np.random.randn(num_users, env.ris.num_els) + 1j * np.random.randn(num_users, env.ris.num_els))
+        noise_ = (np.random.randn(num_users, env.ris.num_els) + 1j * np.random.randn(num_users, env.ris.num_els)) / np.sqrt(2)
     else:
         index_selection = np.arange(0, 100, 3)
         codebook = DFT_norm[index_selection, :]
         num_configs = len(index_selection)
 
         # Generate noise realizations
-        noise_ = (np.random.randn(num_users, num_configs) + 1j * np.random.randn(num_users, num_configs))
+        noise_ = (np.random.randn(num_users, num_configs) + 1j * np.random.randn(num_users, num_configs)) / np.sqrt(2)
 
     # Compute the equivalent channel
-    h_eq_cb = (g_rb.conj()[np.newaxis, np.newaxis, :] * codebook[np.newaxis, :, :] * h_ur[:, np.newaxis, :]).sum(
-        axis=-1)
+    h_eq_cb = (g_rb.conj()[np.newaxis, np.newaxis, :] * codebook[np.newaxis, :, :] * h_ur[:, np.newaxis, :]).sum(axis=-1)
 
     # Generate some noise
-    var = noise_power / num_pilots / 2
+    var = noise_power / num_pilots
     bsw_noise_ = np.sqrt(var) * noise_
 
     # Compute the SNR of each user when using CB scheme
@@ -198,27 +180,34 @@ if __name__ == '__main__':
             n_configurations_flex[uu] = index + 1
 
     # Pre-log term
-    if cb_type == 'fixed':
+    for setup in setups:
+        if setup == 'ob-cc':
+            tau_setup = T
+        elif setup == 'ib-no':
+            tau_setup = 2 * T
+        else:
+            tau_setup = 3 * T
 
-        tau_alg = num_configs * T
-        prelog_term = 1 - (tau_setup + tau_setup + tau_alg)/total_tau
+        if cb_type == 'fixed':
+            tau_alg = num_configs * T
+            prelog_term = 1 - (tau_setup + tau_setup + tau_alg)/total_tau
 
-        rate_cb_bsw = prelog_term * rate_cb_noisy
+            rate_cb_bsw = prelog_term * rate_cb_noisy
 
-    else:
+        else:
+            # Max function is used to remove the negative values
+            tau_alg = np.max(np.vstack((np.zeros_like(n_configurations_flex), (2 * n_configurations_flex - 1) * T)), axis=0)
+            prelog_term = 1 - (tau_setup + tau_setup + tau_alg)/total_tau
+            prelog_term[prelog_term < 0] = 0
 
-        tau_alg = (2 * n_configurations_flex - 1) * T
-        prelog_term = 1 - (tau_setup + tau_setup + tau_alg)/total_tau
+            rate_cb_bsw = prelog_term * rate_cb_noisy_flex
 
-        rate_cb_bsw = prelog_term * rate_cb_noisy_flex
-
-    ##################################################
-    # Save data
-    ##################################################
-    np.savez(prefix + '_' + cb_type + '_' + setup + str('.npz'),
-             snr=snr_cb_noisy,
-             rate=rate_cb_bsw
-             )
+        ##################################################
+        # Save data
+        ##################################################
+        np.savez(prefix + '_' + cb_type + '_' + setup + str('.npz'),
+                 snr=snr_cb_noisy,
+                 rate=rate_cb_bsw)
 
     ##################################################
     # Plot
