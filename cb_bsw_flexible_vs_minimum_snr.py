@@ -1,12 +1,9 @@
-try:
-    import cupy as np
-except ImportError:
-    import numpy as np
+import numpy as np
 
 import matplotlib.pyplot as plt
 
 import scenario.common as cmn
-from environment import RIS2DEnv, command_parser, ecdf, OUTPUT_DIR, NOISE_POWER_dBm
+from environment import RIS2DEnv, command_parser, NOISE_POWER_dBm, TX_POW_dBm, N_TTIs, T, OUTPUT_DIR
 
 from matplotlib import rc
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -22,7 +19,7 @@ rc('text', usetex=True)
 np.random.seed(42)
 
 # Define transmit power [mW]
-tx_power = 100
+tx_power = cmn.dbm2watt(TX_POW_dBm)
 
 # Get noise power
 noise_power = cmn.dbm2watt(NOISE_POWER_dBm)
@@ -30,23 +27,18 @@ noise_power = cmn.dbm2watt(NOISE_POWER_dBm)
 # Define number of pilots
 num_pilots = 1
 
-# Period
-T = 1/14
-
-# Number of TTIs
-n_ttis = 200
-
 # Total tau
-total_tau = T * n_ttis
+total_tau = T * N_TTIs
 
 # For grid mesh
 num_users = int(1e3)
 
 # Setup option
-setups = ['ob-cc', 'ib-no', 'ib-wf']
+setups = ['ob-cc', 'ib-wf']
 
 # Define range of minimum SNR
-minimum_snr_range = np.linspace(1, 10000)
+minimum_snr_range_dB = np.linspace(-6, 30, 100)
+minimum_snr_range = cmn.db2lin(minimum_snr_range_dB)
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
@@ -101,14 +93,13 @@ if __name__ == '__main__':
     codebook = DFT_norm.copy()
 
     # Generate noise realizations
-    noise_ = (np.random.randn(num_users, env.ris.num_els) + 1j * np.random.randn(num_users, env.ris.num_els))
+    noise_ = (np.random.randn(num_users, env.ris.num_els) + 1j * np.random.randn(num_users, env.ris.num_els)) / np.sqrt(2)
 
     # Compute the equivalent channel
-    h_eq_cb = (g_rb.conj()[np.newaxis, np.newaxis, :] * codebook[np.newaxis, :, :] * h_ur[:, np.newaxis, :]).sum(
-        axis=-1)
+    h_eq_cb = (g_rb.conj()[np.newaxis, np.newaxis, :] * codebook[np.newaxis, :, :] * h_ur[:, np.newaxis, :]).sum(axis=-1)
 
     # Generate some noise
-    var = noise_power / num_pilots / 2
+    var = noise_power / num_pilots
     bsw_noise_ = np.sqrt(var) * noise_
 
     # Compute the SNR of each user when using CB scheme
@@ -138,7 +129,7 @@ if __name__ == '__main__':
             # Get the first case in which this is true
             mask = snr_cb_noisy[uu] >= minimum_snr
 
-            if sum(mask) == 0:
+            if np.sum(mask) == 0:
                 continue
 
             # Get the index of the first occurrence
@@ -149,7 +140,7 @@ if __name__ == '__main__':
             n_configurations_flex[ms, uu] = index + 1
 
     # Prepare figure
-    fig, axes = plt.subplots(nrows=3)
+    fig, axes = plt.subplots(nrows=len(setups))
 
     for ss, setup in enumerate(setups):
 
@@ -161,7 +152,8 @@ if __name__ == '__main__':
         # Load data
         rate = np.load(datafilename)['rate']
 
-        axes[ss].plot(minimum_snr_range, np.mean(rate) * np.ones_like(minimum_snr_range), linewidth=1.5, color='black', label='OPT-CE')
+        axes[ss].plot(minimum_snr_range_dB, np.mean(rate) * np.ones_like(minimum_snr_range), linewidth=1.5, color='black', label='OPT-CE')
+        axes[ss].set_title(setup.upper())
 
         # Define tau_setup
         if setup == 'ob-cc':
@@ -172,23 +164,32 @@ if __name__ == '__main__':
             tau_setup = 3 * T
 
         # Pre-log term
-        tau_alg = (2 * n_configurations_flex - 1) * T
+        tau_alg = np.max(np.vstack((np.zeros_like(n_configurations_flex), (2 * n_configurations_flex - 1) * T)), axis=0)
+        prelog_term = 1 - (tau_setup + tau_setup + tau_alg) / total_tau
+        prelog_term[prelog_term < 0] = 0
+
+        rate_cb_bsw = prelog_term * rate_flex
+        avg_rate_cb_bsw_flexi = np.mean(rate_cb_bsw, axis=-1)
+
+        axes[ss].plot(minimum_snr_range_dB, avg_rate_cb_bsw_flexi, linewidth=1.5, linestyle=':', label='CB-BSW: Flexible')
+
+        # Pre-log term
+        index_selection = np.arange(0, env.ris.num_els, 1)
+        num_configs = len(index_selection)
+        tau_alg = num_configs * T
         prelog_term = 1 - (tau_setup + tau_setup + tau_alg) / total_tau
 
         rate_cb_bsw = prelog_term * rate_flex
-        avg_rate_cb_bsw = np.mean(rate_cb_bsw, axis=-1)
+        avg_rate_cb_bsw_fixed = np.mean(rate_cb_bsw, axis=-1)
 
-        axes[ss].plot(minimum_snr_range, avg_rate_cb_bsw, linewidth=1.5, linestyle='--', label='CB-BSW')
+        axes[ss].plot(minimum_snr_range_dB, avg_rate_cb_bsw_fixed, linewidth=1.5, linestyle='--', label='CB-BSW: Fixed')
 
-        axes[ss].set_xlabel('$\gamma_0$')
-        axes[ss].set_ylabel('Rate [bits/Hz/s]')
 
         print('OPT-CE =', np.mean(rate))
-        print('CB-BSW =', np.max(avg_rate_cb_bsw))
-        print(minimum_snr_range[np.argmax(avg_rate_cb_bsw)])
+        print('CB-BSW fixed =', np.max(avg_rate_cb_bsw_fixed))
+        print(minimum_snr_range_dB[np.argmax(avg_rate_cb_bsw_fixed)])
+        print('CB-BSW flexi =', np.max(avg_rate_cb_bsw_flexi))
+        print(minimum_snr_range_dB[np.argmax(avg_rate_cb_bsw_flexi)])
 
-    axes[0].legend()
-
-    plt.tight_layout()
-
-    plt.show()
+    cmn.printplot(fig, axes, render=True, filename='rate_vs_gamma0', dirname=OUTPUT_DIR,
+                  labels=[r'$\gamma_0$ [dB]', r'$R$ [bit/Hz/s]', r'$R$ [bit/Hz/s]'], orientation='vertical')
