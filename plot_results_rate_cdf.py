@@ -1,10 +1,9 @@
 import numpy as np
-
 import matplotlib.pyplot as plt
-
 from matplotlib import rc
 
-from environment import ecdf
+from environment import ecdf, OUTPUT_DIR
+import scenario.common as cmn
 
 rc('font', **{'family': 'sans serif', 'serif': ['Computer Modern']})
 rc('text', usetex=True)
@@ -17,6 +16,8 @@ labels_setups = ['OB-CC', 'IB-no', 'IB-wf']
 paradigms = ['opt_ce_', 'cb_bsw_fixed_', 'cb_bsw_flexible_']
 styles = ['-', '--', ':']
 labels = ['OPT-CE', 'CB-BSW: Fixed', 'CB-BSW: Flexible']
+
+render = True
 
 fig, axes = plt.subplots(nrows=3)
 
@@ -44,8 +45,6 @@ for ss, setup in enumerate(setups):
     axes[ss].set_xlabel('rate [bit/Hz/s]')
     axes[ss].set_ylabel('CDF')
 
-axes[0].legend()
-
 plt.tight_layout(h_pad=.15)
 
-plt.show()
+cmn.printplot(fig, axes, render, filename='rate_cdf', dirname=OUTPUT_DIR)
