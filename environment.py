@@ -10,6 +10,8 @@ import argparse
 from scipy.constants import speed_of_light
 from scipy.stats import rice
 
+import matplotlib.pyplot as plt
+
 from os import path
 
 # GLOBAL STANDARD PARAMETERS
@@ -23,16 +25,15 @@ CARRIER_FREQ = 3e9            # [Hz]
 BANDWIDTH = 180e3               # [Hz]
 NOISE_POWER_dBm = -94               # [dBm]
 SIDE = 20                       # [m] side of the room
-H = 25.                         # [m] height of the room
-BS_POS = np.array([[-5, 5, 5]]) # Standard BS positioning
+BS_POS = np.array([[20, 5, 5]]) # Standard BS positioning
 
 T = 1/14            # [ms] time of a TTI
 N_TTIs = 140        # coherence block (10 ms)
 TX_POW_dBm = 24     # [dBm] transmit power
 try:
-    TAU = T * np.arange(70, 730, 8.75).get()
+    TAU = T * np.arange(70, 3 * 140, 8.75).get()
 except AttributeError:
-    TAU = T * np.arange(70, 1450, 35)
+    TAU = T * np.arange(70, 3 * 140, 8.75)
 
 
 # Parser for the test files
@@ -46,7 +47,6 @@ def command_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("-r", "--render", action="store_true", default=False)
     parser.add_argument("-D", type=float, default=SIDE)
-    parser.add_argument("-H", type=float, default=H)
     parser.add_argument("-f", "--filename", default='')
     parser.add_argument("-d", "--directory", default=DATADIR)
     args: dict = vars(parser.parse_args())
@@ -54,11 +54,11 @@ def command_parser():
 
 
 ## Classes
-class RIS2DEnv(Cluster):
+class RisProtocolEnv(Cluster):
     """General environment class for the setting at hand"""
     def __init__(self,
-                 ue_position: np.array,
-                 sides: np.ndarray = np.array([SIDE, SIDE, H]),
+                 num_users: int,
+                 side: float = SIDE,
                  bs_position: np.array = BS_POS,
                  ris_num_els: int = NUM_EL_X,
                  carrier_frequency: float = CARRIER_FREQ,
@@ -66,6 +66,9 @@ class RIS2DEnv(Cluster):
                  noise_power: float = NOISE_POWER_dBm,
                  rbs: int = 1,
                  rng: np.random.RandomState = None):
+        # Generate sides of the overall environment
+        max_pos = max(side, np.max(bs_position))
+        sides = 2 * np.array([max_pos, max_pos, max_pos])
         # Init parent class
         super().__init__(shape='box',
                          sizes=np.array(sides),
@@ -76,12 +79,17 @@ class RIS2DEnv(Cluster):
                          reflective_channel='LoS',
                          rbs=rbs,
                          rng=rng)
-        self._int_tested = 25       # attribute related to the number of integers under frequency_scheduling
+        # Manage cupy/numpy compatibilities
         try:
             bs_position = np.asarray(bs_position)
-            ue_position = np.array(ue_position)
         except AttributeError:
             pass
+        # Generate user position
+        x = side * np.random.rand(num_users, 1) - side / 2
+        y = side * np.random.rand(num_users, 1)
+        z = - side * np.random.rand(num_users, 1)
+        ue_position = np.hstack((x, y, z))
+
         # Geometry and scenario
         # Place the BS in the selected position
         self.place_bs(1, bs_position)
@@ -93,11 +101,6 @@ class RIS2DEnv(Cluster):
         # Initialize standard configuration at -3dB
         self.ris.init_std_configurations(self.wavelength, )
 
-        # TODO: add the needed attributes
-
-    # @property
-    # def self.ris_array_factor(self):
-    #     return self.ris.array_factor
 
     def set_std_conf_2D(self, index):
         return self.ris.set_std_configuration_2D(self.wavelength, index, bs_pos=self.bs.pos)
@@ -182,6 +185,27 @@ class RIS2DEnv(Cluster):
             af_gain[iter * n:] = np.abs(np.sum(self.ris.actual_conf[np.newaxis, np.newaxis].T * np.exp(- 1j * 2 * np.pi / speed_of_light * (phase_shift_ru + phase_shift_br)), axis=0) / self.ris.num_els) ** 2
         del phase_shift_ru, phase_shift_br, pos_versor, pos_dist
         return af_gain
+
+    def plot_scenario(self, render: bool = False, *args):
+        # Plot setup
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='3d')
+
+        try:
+            ax.scatter(self.ue.pos.cart[:, 0], self.ue.pos.cart[:, 1], self.ue.pos.cart[:, 2], marker='o', color='black', alpha=0.1, label='UE')
+            ax.scatter(self.bs.pos.cart[:, 0], self.bs.pos.cart[:, 1], self.bs.pos.cart[:, 2], marker='^', label='BS')
+            ax.scatter(self.ris.pos.cart[:, 0], self.ris.pos.cart[:, 1], self.ris.pos.cart[:, 2], marker='d', label='RIS')
+        except TypeError:
+            ax.scatter(self.ue.pos.cart[:, 0].get(), self.ue.pos.cart[:, 1].get(), self.ue.pos.cart[:, 2].get(), marker='o', color='black', alpha=0.1, label='UE')
+            ax.scatter(self.bs.pos.cart[:, 0].get(), self.bs.pos.cart[:, 1].get(), self.bs.pos.cart[:, 2].get(), marker='^', label='BS')
+            ax.scatter(self.ris.pos.cart[:, 0].get(), self.ris.pos.cart[:, 1].get(), self.ris.pos.cart[:, 2].get(), marker='d', label='RIS')
+
+        ax.set_xlabel('$x$')
+        ax.set_ylabel('$y$')
+        ax.set_zlabel('$z$')
+
+        ax.legend()
+        plt.show()
 
 
 
