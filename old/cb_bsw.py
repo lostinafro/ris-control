@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import scenario.common as cmn
-from environment import RIS2DEnv, command_parser, ecdf, NOISE_POWER_dBm, T, N_TTIs, TX_POW_dBm
+from environment import RisProtocolEnv, command_parser, ecdf, NOISE_POWER_dBm, T, N_TTIs, TX_POW_dBm
 
 from matplotlib import rc
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -27,22 +27,22 @@ noise_power = cmn.dbm2watt(NOISE_POWER_dBm)
 # Define number of pilots
 num_pilots = 1
 
+# Define minimum SNR
+minimum_snr_dB = 14
+minimum_snr = cmn.db2lin(minimum_snr_dB)
+
 # Total tau
 total_tau = T * N_TTIs
 
-# Define CHEST algorithmic cost
-chest_time_cost = 5
-
 # Parameter for saving datas
-prefix = 'data/opt_ce'
+prefix = 'data/cb_bsw'
+
+# CB type
+cb_type = 'fixed'
+# cb_type = 'flexible'
 
 # Setup option
 setups = ['ob-cc', 'ib-no', 'ib-wf']
-# setup = 'ob-cc'
-# setup = 'ib-no'
-# setup = 'ib-wf'
-
-
 
 # For grid mesh
 num_users = int(1e3)
@@ -52,7 +52,7 @@ if __name__ == '__main__':
     # The following parser is used to impose some data without the need of changing the script (run with -h flag for
     # help) Render bool needs to be True to save the data If no arguments are given the standard value are loaded (
     # see environment) datasavedir should be used to save numpy arrays
-    render, side_x, h, name, datasavedir = command_parser()
+    render, side_x, name, datasavedir = command_parser()
     prefix = prefix + name
 
     # Define length of the cube
@@ -82,11 +82,8 @@ if __name__ == '__main__':
     ax.legend()
 
     # Build environment
-    env = RIS2DEnv(bs_position=bs_pos, ue_position=ue_pos, sides=200 * np.ones(3))
+    env = RisProtocolEnv(bs_position=bs_pos, ue_position=ue_pos, sides=200 * np.ones(3))
     # TODO: this sides is not being used, I am just putting a random value to ensure that the tests pass.
-
-    # Generate noise realizations
-    noise_ = (np.random.randn(num_users, env.ris.num_els) + 1j * np.random.randn(num_users, env.ris.num_els)) / np.sqrt(2)
 
     ##############################
     # Generate DFT codebook of configurations
@@ -123,42 +120,66 @@ if __name__ == '__main__':
     g_rb = np.squeeze(g_rb)
 
     ##############################
-    # OPT-CE
+    # Codebook-based
     ##############################
 
-    # Generate estimation noise
-    est_var = noise_power / env.ris.num_els / tx_power / num_pilots
-    est_noise_ = np.sqrt(est_var) * noise_
+    # Codebook selection
+    if cb_type == 'flexible':
+        codebook = DFT_norm.copy()
 
-    # Get estimated channel coefficients for the equivalent channel
-    z_eq = h_ur * g_rb[np.newaxis, :]
-    z_hat = z_eq + est_noise_
+        # Generate noise realizations
+        noise_ = (np.random.randn(num_users, env.ris.num_els) + 1j * np.random.randn(num_users, env.ris.num_els)) / np.sqrt(2)
+    else:
+        index_selection = np.arange(0, 100, 3)
+        codebook = DFT_norm[index_selection, :]
+        num_configs = len(index_selection)
 
-    # Get estimated/best configuration (the one that maximizes the SNR)
-    Phi_true = np.exp(-1j * np.angle(z_eq))
-    Phi_hat = np.exp(-1j * np.angle(z_hat))
+        # Generate noise realizations
+        noise_ = (np.random.randn(num_users, num_configs) + 1j * np.random.randn(num_users, num_configs)) / np.sqrt(2)
 
-    # Compute equivalent channel
-    h_eq_chest = (Phi_true * z_eq).sum(axis=-1)
-    h_eq_chest_hat = (Phi_hat * z_hat).sum(axis=-1)
+    # Compute the equivalent channel
+    h_eq_cb = (g_rb.conj()[np.newaxis, np.newaxis, :] * codebook[np.newaxis, :, :] * h_ur[:, np.newaxis, :]).sum(axis=-1)
 
-    # Compute the SNR of each user when using OPT-CE
-    sig_pow_oc = tx_power * np.abs(h_eq_chest) ** 2
-    sig_pow_oc_hat = tx_power * np.abs(h_eq_chest_hat) ** 2
+    # Generate some noise
+    var = noise_power / num_pilots
+    bsw_noise_ = np.sqrt(var) * noise_
 
-    snr_oc = sig_pow_oc / noise_power
-    snr_oc_hat = sig_pow_oc_hat / noise_power
+    # Compute the SNR of each user when using CB scheme
+    sig_pow_cb = tx_power * np.abs(h_eq_cb) ** 2
+    sig_pow_noisy_cb = np.abs(np.sqrt(tx_power) * h_eq_cb + bsw_noise_) ** 2
 
-    snr_oc_db = 10 * np.log10(snr_oc)
-    snr_oc_hat_db = 10 * np.log10(snr_oc_hat)
+    snr_cb = sig_pow_cb / noise_power
+    snr_cb_noisy = sig_pow_noisy_cb / noise_power
 
-    # Compute rate
-    rate_oc = np.log2(1 + snr_oc)
-    rate_oc_hat = np.log2(1 + snr_oc_hat)
+    snr_cb_db = 10 * np.log10(sig_pow_cb / noise_power)
+    snr_cb_noisy_db = 10 * np.log10(snr_cb_noisy)
+
+    # Compute rates
+    rate_cb = np.log2(1 + snr_cb)
+    rate_cb_noisy = np.log2(1 + snr_cb_noisy)
+
+    rate_cb_noisy_flex = np.zeros(num_users)
+    n_configurations_flex = np.zeros(num_users)
+
+    if cb_type == 'flexible':
+
+        # Go through all users
+        for uu in range(num_users):
+
+            # Get the first case in which this is true
+            mask = snr_cb_noisy[uu] >= minimum_snr
+
+            if sum(mask) == 0:
+                continue
+
+            # Get the index of the first occurrence
+            index = np.argmax(mask)
+
+            # Store results
+            rate_cb_noisy_flex[uu] = np.log2(1 + minimum_snr)
+            n_configurations_flex[uu] = index + 1
 
     # Pre-log term
-    tau_alg = (env.ris.num_els + chest_time_cost) * T
-
     for setup in setups:
         if setup == 'ob-cc':
             tau_setup = T
@@ -167,17 +188,26 @@ if __name__ == '__main__':
         else:
             tau_setup = 3 * T
 
-        prelog_term = 1 - (tau_setup + tau_setup + tau_alg)/total_tau
+        if cb_type == 'fixed':
+            tau_alg = num_configs * T
+            prelog_term = 1 - (tau_setup + tau_setup + tau_alg)/total_tau
 
-        rate_opt_ce = prelog_term * rate_oc_hat
+            rate_cb_bsw = prelog_term * rate_cb_noisy
+
+        else:
+            # Max function is used to remove the negative values
+            tau_alg = np.max(np.vstack((np.zeros_like(n_configurations_flex), (2 * n_configurations_flex - 1) * T)), axis=0)
+            prelog_term = 1 - (tau_setup + tau_setup + tau_alg)/total_tau
+            prelog_term[prelog_term < 0] = 0
+
+            rate_cb_bsw = prelog_term * rate_cb_noisy_flex
 
         ##################################################
         # Save data
         ##################################################
-        np.savez(prefix + '_' + setup + str('.npz'),
-                 snr=snr_oc_hat,
-                 rate=rate_opt_ce
-                 )
+        np.savez(prefix + '_' + cb_type + '_' + setup + str('.npz'),
+                 snr=snr_cb_noisy,
+                 rate=rate_cb_bsw)
 
     ##################################################
     # Plot
@@ -185,12 +215,13 @@ if __name__ == '__main__':
     fig, axes = plt.subplots(nrows=2)
 
     # Get CDF
-    x_cdf_oc_db, y_cdf_oc_db = ecdf(snr_oc_db)
-    x_cdf_oc_hat_db, y_cdf_oc_hat_db = ecdf(snr_oc_hat_db)
+    x_cdf_cb_db, y_cdf_cb_db = ecdf(snr_cb_db)
+    x_cdf_cb_noisy_db, y_cdf_cb_noisy_db = ecdf(snr_cb_noisy_db)
 
-    axes[0].plot(x_cdf_oc_db, y_cdf_oc_db, linewidth=1.5, color='black', label=r'OPT-CE: true')
-    axes[0].plot(x_cdf_oc_hat_db, y_cdf_oc_hat_db, linewidth=1.5, linestyle='--', color='black',
-                 label=r'OPT-CE: estimated')
+    axes[0].plot(x_cdf_cb_db, y_cdf_cb_db, linewidth=1.5, color='tab:blue',
+                 label='CB-BSW: true, $N=' + str(env.ris.num_els) + '$')
+    axes[0].plot(x_cdf_cb_noisy_db, y_cdf_cb_noisy_db, linewidth=1.5, color='tab:blue', linestyle='--',
+                 label=r'CB-BSW: noisy, $C_{\mathrm{CB}}=' + str(env.ris.num_els) + '$')
 
     axes[0].set_xlabel('SNR [dB]')
     axes[0].set_ylabel('CDF')
@@ -198,17 +229,21 @@ if __name__ == '__main__':
     axes[0].legend()
 
     # Get CDF
-    x_cdf_oc_db, y_cdf_oc_db = ecdf(rate_oc)
-    x_cdf_oc_hat_db, y_cdf_oc_hat_db = ecdf(rate_oc_hat)
+    x_cdf_oc_db, y_cdf_oc_db = ecdf(rate_cb)
+    x_cdf_oc_hat_db, y_cdf_oc_hat_db = ecdf(rate_cb_noisy)
 
-    axes[1].plot(x_cdf_oc_db, y_cdf_oc_db, linewidth=1.5, color='black', label=r'OPT-CE: true')
+    axes[1].plot(x_cdf_oc_db, y_cdf_oc_db, linewidth=1.5, color='black', label=r'CB-BSW: true')
     axes[1].plot(x_cdf_oc_hat_db, y_cdf_oc_hat_db, linewidth=1.5, linestyle='--', color='black',
-                 label=r'OPT-CE: estimated')
+                 label=r'CB-BSW: estimated')
+
+    if cb_type == 'flexible':
+        x_cdf_oc_hat_db, y_cdf_oc_hat_db = ecdf(rate_cb_noisy_flex)
+        axes[1].plot(x_cdf_oc_hat_db, y_cdf_oc_hat_db, linewidth=1.5, linestyle=':', color='black',
+                     label=r'CB-BSW: estimated, flexible')
 
     axes[1].set_xlabel('Rate [bit/Hz/s]')
     axes[1].set_ylabel('CDF')
 
     plt.tight_layout()
-
 
     #plt.show()

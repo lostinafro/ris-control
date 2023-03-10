@@ -6,7 +6,7 @@ except ImportError:
 import matplotlib.pyplot as plt
 
 import scenario.common as cmn
-from environment import RIS2DEnv, command_parser, ecdf, OUTPUT_DIR, NOISE_POWER_dBm
+from environment import RisProtocolEnv, command_parser, ecdf, OUTPUT_DIR, NOISE_POWER_dBm
 
 from matplotlib import rc
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -36,38 +36,38 @@ if __name__ == '__main__':
     # The following parser is used to impose some data without the need of changing the script (run with -h flag for
     # help) Render bool needs to be True to save the data If no arguments are given the standard value are loaded (
     # see environment) datasavedir should be used to save numpy arrays
-    render, side_x, h, name, datasavedir = command_parser()
+    render, side, name, datasavedir = command_parser()
     prefix = prefix + name
 
     # Define length of the cube
-    cube_length = side_x
+    cube_length = side
 
-    # Drop some users: the RIS is assumed to be in the middle of the bottom face of the cube.
-    x = cube_length * np.random.rand(num_users, 1) - cube_length
-    y = cube_length / 2 * np.random.rand(num_users, 1)
-    z = cube_length * np.random.rand(num_users, 1) - cube_length / 2
-
-    # Get position of the users and position of the BS
-    ue_pos = np.hstack((x, y, z))
-    bs_pos = np.array([[20, 5, 0]])
-
-    # Plot setup
-    fig = plt.figure()
-    ax = fig.add_subplot(projection='3d')
-
-    ax.scatter(ue_pos[:, 0], ue_pos[:, 1], ue_pos[:, 2], marker='o', color='black', alpha=0.1, label='UE')
-    ax.scatter(bs_pos[:, 0], bs_pos[:, 1], bs_pos[:, 2], marker='^', label='BS')
-    ax.scatter(0, 0, 0, marker='d', label='RIS')
-
-    ax.set_xlabel('$x$')
-    ax.set_ylabel('$y$')
-    ax.set_zlabel('$z$')
-
-    ax.legend()
+    # # Drop some users: the RIS is assumed to be in the middle of the bottom face of the cube.
+    # x = cube_length * np.random.rand(num_users, 1) - cube_length
+    # y = cube_length / 2 * np.random.rand(num_users, 1)
+    # z = cube_length * np.random.rand(num_users, 1) - cube_length / 2
+    #
+    # # Get position of the users and position of the BS
+    # ue_pos = np.hstack((x, y, z))
+    # bs_pos = np.array([[20, 5, 0]])
+    #
+    # # Plot setup
+    # fig = plt.figure()
+    # ax = fig.add_subplot(projection='3d')
+    #
+    # ax.scatter(ue_pos[:, 0], ue_pos[:, 1], ue_pos[:, 2], marker='o', color='black', alpha=0.1, label='UE')
+    # ax.scatter(bs_pos[:, 0], bs_pos[:, 1], bs_pos[:, 2], marker='^', label='BS')
+    # ax.scatter(0, 0, 0, marker='d', label='RIS')
+    #
+    # ax.set_xlabel('$x$')
+    # ax.set_ylabel('$y$')
+    # ax.set_zlabel('$z$')
+    #
+    # ax.legend()
 
     # Build environment
-    env = RIS2DEnv(bs_position=bs_pos, ue_position=ue_pos, sides=200 * np.ones(3))
-    # TODO: this sides is not being used, I am just putting a random value to ensure that the tests pass.
+    env = RisProtocolEnv(num_users=num_users, side=side)
+
 
     # Generate noise realizations
     noise_ = (np.random.randn(num_users, env.ris.num_els) + 1j * np.random.randn(num_users, env.ris.num_els))

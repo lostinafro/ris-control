@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import scenario.common as cmn
-from environment import RIS2DEnv, command_parser, NOISE_POWER_dBm, T, TAU, TX_POW_dBm
+from environment import RisProtocolEnv, command_parser, NOISE_POWER_dBm, T, TAU, TX_POW_dBm
 
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
@@ -24,7 +24,7 @@ noise_power = cmn.dbm2watt(NOISE_POWER_dBm)
 num_pilots = 1
 
 # Define minimum SNR
-minimum_snr_dB = 14
+minimum_snr_dB = 10
 minimum_snr = cmn.db2lin(minimum_snr_dB)
 
 # Total tau
@@ -34,8 +34,7 @@ total_tau = TAU
 prefix = 'data/cb_bsw_vs_tau'
 
 # CB type
-cb_type = 'fixed'
-# cb_type = 'flexible'
+cb_types = ['fixed', 'flexi']
 
 # Setup option
 setups = ['ob-cc', 'ib-no', 'ib-wf']
@@ -48,38 +47,12 @@ if __name__ == '__main__':
     # The following parser is used to impose some data without the need of changing the script (run with -h flag for
     # help) Render bool needs to be True to save the data If no arguments are given the standard value are loaded (
     # see environment) datasavedir should be used to save numpy arrays
-    render, side_x, h, name, datasavedir = command_parser()
+    render, side, name, datasavedir = command_parser()
     prefix = prefix + name
 
-    # Define length of the cube
-    cube_length = side_x
-
-    # Drop some users: the RIS is assumed to be in the middle of the bottom face of the cube.
-    x = cube_length * np.random.rand(num_users, 1) - cube_length
-    y = cube_length / 2 * np.random.rand(num_users, 1)
-    z = cube_length * np.random.rand(num_users, 1) - cube_length / 2
-
-    # Get position of the users and position of the BS
-    ue_pos = np.hstack((x, y, z))
-    bs_pos = np.array([[20, 5, 0]])
-
-    # Plot setup
-    fig = plt.figure()
-    ax = fig.add_subplot(projection='3d')
-
-    ax.scatter(ue_pos[:, 0], ue_pos[:, 1], ue_pos[:, 2], marker='o', color='black', alpha=0.1, label='UE')
-    ax.scatter(bs_pos[:, 0], bs_pos[:, 1], bs_pos[:, 2], marker='^', label='BS')
-    ax.scatter(0, 0, 0, marker='d', label='RIS')
-
-    ax.set_xlabel('$x$')
-    ax.set_ylabel('$y$')
-    ax.set_zlabel('$z$')
-
-    ax.legend()
-
     # Build environment
-    env = RIS2DEnv(bs_position=bs_pos, ue_position=ue_pos, sides=200 * np.ones(3))
-    # TODO: this sides is not being used, I am just putting a random value to ensure that the tests pass.
+    env = RisProtocolEnv(num_users=num_users, side=side)
+    # env.plot_scenario()
 
     ##############################
     # Generate DFT codebook of configurations
@@ -119,84 +92,93 @@ if __name__ == '__main__':
     # Codebook-based
     ##############################
 
-    # Codebook selection
-    if cb_type == 'flexible':
-        codebook = DFT_norm.copy()
+    for cb_type in cb_types:
+        try:
+            minimum_snr_dB = np.load('data/cb_bsw_opt_kpi.npz')[cb_type]
+        except FileNotFoundError:
+            minimum_snr_dB = 10
+        minimum_snr = cmn.db2lin(minimum_snr_dB)
 
-        # Generate noise realizations
-        noise_ = (np.random.randn(num_users, env.ris.num_els) + 1j * np.random.randn(num_users, env.ris.num_els)) / np.sqrt(2)
-    else:
-        index_selection = np.arange(0, 100, 3)
-        codebook = DFT_norm[index_selection, :]
-        num_configs = len(index_selection)
 
-        # Generate noise realizations
-        noise_ = (np.random.randn(num_users, num_configs) + 1j * np.random.randn(num_users, num_configs)) / np.sqrt(2)
+        # Codebook selection
+        if cb_type == 'flexi':
+            codebook = DFT_norm.copy()
 
-    # Compute the equivalent channel
-    h_eq_cb = (g_rb[np.newaxis, np.newaxis, :] * codebook[np.newaxis, :, :] * h_ur[:, np.newaxis, :]).sum(axis=-1)
-
-    # Generate noise
-    var = noise_power / num_pilots
-    bsw_noise_ = np.sqrt(var) * noise_
-
-    # Compute the measured SNR of each user when using CB scheme
-    sig_pow_cb = tx_power * np.abs(h_eq_cb) ** 2
-    sig_pow_noisy_cb = np.abs(np.sqrt(tx_power) * h_eq_cb + bsw_noise_) ** 2
-
-    snr_cb = sig_pow_cb / noise_power
-    snr_cb_noisy = sig_pow_noisy_cb / noise_power
-
-    snr_cb_db = 10 * np.log10(sig_pow_cb / noise_power)
-    snr_cb_noisy_db = 10 * np.log10(snr_cb_noisy)
-
-    # Go through all users
-    rate_cb_noisy = np.zeros(num_users)
-    n_configurations_flex = np.zeros(num_users)
-
-    for uu in range(num_users):
-
-        # Get the first case in which this is true
-        mask = snr_cb_noisy[uu] >= minimum_snr
-
-        if sum(mask) == 0:
-            continue
-
-        # Get the index of the first occurrence
-        index = np.argmax(mask)
-
-        # Store results
-        rate_cb_noisy[uu] = np.log2(1 + minimum_snr)
-        n_configurations_flex[uu] = index + 1
-
-    # Pre-log term
-    for setup in setups:
-        if setup == 'ob-cc':
-            tau_setup = T
-        elif setup == 'ib-no':
-            tau_setup = 2 * T
+            # Generate noise realizations
+            noise_ = (np.random.randn(num_users, env.ris.num_els) + 1j * np.random.randn(num_users, env.ris.num_els)) / np.sqrt(2)
         else:
-            tau_setup = 3 * T
+            index_selection = np.arange(0, 100, 3)
+            codebook = DFT_norm[index_selection, :]
+            num_configs = len(index_selection)
 
-        if cb_type == 'fixed':
-            tau_alg = num_configs * T
-            prelog_term = 1 - (tau_setup + tau_setup + tau_alg)/total_tau
-            prelog_term[prelog_term < 0] = 0
+            # Generate noise realizations
+            noise_ = (np.random.randn(num_users, num_configs) + 1j * np.random.randn(num_users, num_configs)) / np.sqrt(2)
 
-            rate_cb_bsw = prelog_term[np.newaxis].T * np.repeat(rate_cb_noisy[np.newaxis], len(total_tau), axis=0)
+        # Compute the equivalent channel
+        h_eq_cb = (g_rb[np.newaxis, np.newaxis, :] * codebook[np.newaxis, :, :] * h_ur[:, np.newaxis, :]).sum(axis=-1)
 
-        else:
-            # Max function is used to remove the negative values
-            tau_alg = np.max(np.vstack((np.zeros_like(n_configurations_flex), (2 * n_configurations_flex - 1) * T)), axis=0)
-            prelog_term = 1 - (tau_setup + tau_setup + tau_alg[np.newaxis])/np.repeat(total_tau[np.newaxis].T, num_users, axis=1)
-            prelog_term[prelog_term < 0] = 0
+        # Generate noise
+        var = noise_power / num_pilots
+        bsw_noise_ = np.sqrt(var) * noise_
 
-            rate_cb_bsw = prelog_term * np.repeat(rate_cb_noisy[np.newaxis], len(total_tau), axis=0)
+        # Compute the measured SNR of each user when using CB scheme
+        sig_pow_cb = tx_power * np.abs(h_eq_cb) ** 2
+        sig_pow_noisy_cb = np.abs(np.sqrt(tx_power) * h_eq_cb + bsw_noise_) ** 2
 
-        ##################################################
-        # Save data
-        ##################################################
-        np.savez(prefix + '_' + cb_type + '_' + setup + str('.npz'),
-                 snr_true=snr_cb,
-                 snr_esti=snr_cb_noisy,
-                 rate=rate_cb_bsw)
+        snr_cb = sig_pow_cb / noise_power
+        snr_cb_hat = sig_pow_noisy_cb / noise_power
+
+        snr_cb_db = 10 * np.log10(sig_pow_cb / noise_power)
+        snr_cb_hat_db = 10 * np.log10(snr_cb_hat)
+
+        # Go through all users
+        se_cb = np.zeros((len(total_tau), num_users))
+        n_configurations_flex = np.zeros((len(total_tau), num_users))
+
+        for tt, tau in enumerate(total_tau):
+            for uu in range(num_users):
+
+                # Get the first case in which this is true
+                mask = snr_cb_hat[uu] >= minimum_snr[tt]
+
+                if np.sum(mask) == 0:    # No configuration satisfies the KPI
+                    n_configurations_flex[tt, uu] = -1
+                else:       # At least one conf satisfies the KPI
+                    # Get the index of the first occurrence
+                    index = np.argmax(mask)
+
+                    # Store configuration number
+                    n_configurations_flex[tt, uu] = index + 1
+                    se_cb[tt, uu] = np.log2(1 + minimum_snr[tt])
+
+        # Pre-log term
+        for setup in setups:
+            if setup == 'ob-cc':
+                tau_setup = T
+            elif setup == 'ib-no':
+                tau_setup = 2 * T
+            else:
+                tau_setup = 3 * T
+
+            if cb_type == 'fixed':
+                tau_alg = num_configs * T
+                prelog_term = 1 - (tau_setup + tau_setup + tau_alg) / total_tau
+                prelog_term[prelog_term < 0] = 0
+
+                rate_cb_bsw = prelog_term[np.newaxis].T * se_cb
+
+            else:
+                # Max function is used to remove the negative values
+                tau_alg = np.repeat((2 * n_configurations_flex[np.newaxis] - 1), len(total_tau), axis=0) * T
+                prelog_term = 1 - (tau_setup + tau_setup + tau_alg) / np.repeat(total_tau[np.newaxis].T, num_users, axis=1)
+                prelog_term[(prelog_term < 0) | (tau_alg < 0)] = 0
+
+                rate_cb_bsw = prelog_term * se_cb
+
+            ##################################################
+            # Save data
+            ##################################################
+            np.savez(prefix + '_' + cb_type + '_' + setup + str('.npz'),
+                     snr_true=snr_cb,
+                     snr_esti=snr_cb_hat,
+                     rate=rate_cb_bsw)
