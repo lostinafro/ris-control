@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from os import path
 
 import scenario.common as cmn
-from environment import RIS2DEnv, command_parser, ecdf
+from environment import RisProtocolEnv, command_parser, ecdf
 
 NOISE_POWER = -94               # [dBm]
 
@@ -40,7 +40,7 @@ if __name__ == '__main__':
     ue_pos = np.hstack((x, y, np.zeros((num_users, 1))))
 
     # Build environment
-    env = RIS2DEnv(ue_position=ue_pos, sides=np.array([side_x, side_y, h]))
+    env = RisProtocolEnv(ue_position=ue_pos, sides=np.array([side_x, side_y, h]))
     num_conf = env.ris.num_std_configs
 
     # Pre-allocation of variables
