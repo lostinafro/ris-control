@@ -20,13 +20,21 @@ labels = ['OPT-CE', 'CB-BSW: Fixed', 'CB-BSW: Flexible']
 colors_snr = ['blue', 'red']
 labels_snr = ['OPT-CE', 'CB-BSW']
 
-render = True
+render = False
 
-# generate two plots with different tau
+# generate plots with different tau
 fig_lo, axes_lo = plt.subplots(nrows=len(labels_setups))
 fig_hi, axes_hi = plt.subplots(nrows=len(labels_setups))
 fig_me, axes_me = plt.subplots(nrows=len(labels_setups))
 fig_snr, axes_snr = plt.subplots(figsize=(5, 2.5))
+fig_kpi, axes_kpi = plt.subplots()
+
+kpi_flexi = np.load('data/cb_bsw_opt_kpi.npz')['flexi']
+kpi_fixed = np.load('data/cb_bsw_opt_kpi.npz')['fixed']
+
+axes_kpi.plot(TAU, kpi_fixed, linewidth=1.5, linestyle=':', label=f'CB-BSW: Fixed', color='red')
+axes_kpi.plot(TAU, kpi_flexi, linewidth=1.5, linestyle='--', label=f'CB-BSW: Flexible', color='blue')
+
 
 for ss, setup in enumerate(setups):
 
@@ -39,12 +47,10 @@ for ss, setup in enumerate(setups):
         if ss == 0 and pp < 2:
             snr_true = np.load(datafilename)['snr_true']
             snr_esti = np.load(datafilename)['snr_esti']
-            #x_, y_ = ecdf(snr_true)
-            #axes_snr.plot(10*np.log10(x_), y_, linewidth=1.5, linestyle='-', label=f'{labels_snr[pp]}: true', color=colors_snr[pp])
+            x_, y_ = ecdf(snr_true)
+            axes_snr.plot(10*np.log10(x_[::10]), y_[::10], linewidth=1.5, linestyle='-', label=f'{labels_snr[pp]}: true', color=colors_snr[pp])
             x_, y_ = ecdf(snr_esti)
-            axes_snr.plot(10*np.log10(x_), y_, linewidth=1.5, linestyle='--', label=f'{labels_snr[pp]}', color=colors_snr[pp])
-
-
+            axes_snr.plot(10*np.log10(x_[::10]), y_[::10], linewidth=1.5, linestyle='--', label=f'{labels_snr[pp]}', color=colors_snr[pp])
 
 
         ## RATE
@@ -81,3 +87,6 @@ cmn.printplot(fig_hi, axes_hi, render, filename='rate_cdf_hi', dirname=OUTPUT_DI
 
 cmn.printplot(fig_snr, axes_snr, render, filename='snr_cdf', dirname=OUTPUT_DIR,
               labels=['$\gamma$ [dB]', 'CDF'])
+
+cmn.printplot(fig_kpi, axes_kpi, render, filename='kpi_vs_tau', dirname=OUTPUT_DIR,
+              labels=[r'$\tau$ [ms]', '$\gamma_0$ [dB]'])
