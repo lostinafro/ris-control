@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import scenario.common as cmn
-from environment import RisProtocolEnv, command_parser, NOISE_POWER_dBm, T, TAU, TX_POW_dBm
+from environment import RisProtocolEnv, command_parser, NOISE_POWER_dBm, T, TAU, TX_POW_dBm, NUM_PILOTS
 
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
@@ -19,9 +19,6 @@ tx_power = cmn.dbm2watt(TX_POW_dBm)
 
 # Get noise power
 noise_power = cmn.dbm2watt(NOISE_POWER_dBm)
-
-# Define number of pilots
-num_pilots = 1
 
 # Total tau
 total_tau = TAU
@@ -93,7 +90,7 @@ if __name__ == '__main__':
     ##############################
 
     # Generate estimation noise
-    est_var = noise_power / env.ris.num_els / tx_power / num_pilots
+    est_var = noise_power / env.ris.num_els / tx_power / NUM_PILOTS
     est_noise_ = np.sqrt(est_var) * noise_
 
     # Get estimated channel coefficients for the equivalent channel
@@ -109,11 +106,8 @@ if __name__ == '__main__':
     h_eq_chest_hat = (Phi_hat * z_hat).sum(axis=-1)
 
     # Compute the SNR of each user when using OPT-CE
-    sig_pow_oc = tx_power * np.abs(h_eq_chest) ** 2
-    sig_pow_oc_hat = tx_power * np.abs(h_eq_chest_hat) ** 2
-
-    snr_oc = sig_pow_oc / noise_power
-    snr_oc_hat = sig_pow_oc_hat / noise_power
+    snr_oc = tx_power / noise_power * np.abs(h_eq_chest) ** 2
+    snr_oc_hat = tx_power / noise_power * np.abs(h_eq_chest_hat) ** 2
 
     snr_oc_db = 10 * np.log10(snr_oc)
     snr_oc_hat_db = 10 * np.log10(snr_oc_hat)
@@ -121,6 +115,7 @@ if __name__ == '__main__':
     # Compute rate
     se_oc = np.log2(1 + snr_oc)
     se_oc_hat = np.log2(1 + snr_oc_hat)
+    se_oc_hat[se_oc_hat > se_oc] = 0
 
     # Pre-log term
     tau_alg = (env.ris.num_els + chest_time_cost) * T
@@ -136,7 +131,8 @@ if __name__ == '__main__':
         prelog_term = 1 - (tau_setup + tau_setup + tau_alg)/total_tau
         prelog_term[prelog_term < 0] = 0
 
-        rate_opt_ce = prelog_term[np.newaxis].T * np.repeat(se_oc_hat[np.newaxis], len(total_tau), axis=0)
+        rate_opt_ce = prelog_term[np.newaxis].T * np.repeat(se_oc[np.newaxis], len(total_tau), axis=0)
+        rate_opt_ce_hat = prelog_term[np.newaxis].T * np.repeat(se_oc_hat[np.newaxis], len(total_tau), axis=0)
 
         ##################################################
         # Save data
@@ -144,4 +140,5 @@ if __name__ == '__main__':
         np.savez(prefix + '_' + setup + str('.npz'),
                  snr_true=snr_oc,
                  snr_esti=snr_oc_hat,
-                 rate=rate_opt_ce)
+                 rate=rate_opt_ce,
+                 rate_esti=rate_opt_ce_hat)
