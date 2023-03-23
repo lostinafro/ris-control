@@ -113,9 +113,9 @@ if __name__ == '__main__':
     snr_oc_hat_db = 10 * np.log10(snr_oc_hat)
 
     # Compute rate
-    se_oc = np.log2(1 + snr_oc)
-    se_oc_hat = np.log2(1 + snr_oc_hat)
-    se_oc_hat[se_oc_hat > se_oc] = 0
+    se_oc = np.log2(1 + snr_oc_hat)
+    se_oc_real = np.log2(1 + snr_oc_hat)
+    se_oc_real[se_oc > se_oc] = 0
 
     # Pre-log term
     tau_alg = (env.ris.num_els + chest_time_cost) * T
@@ -132,7 +132,7 @@ if __name__ == '__main__':
         prelog_term[prelog_term < 0] = 0
 
         rate_opt_ce = prelog_term[np.newaxis].T * np.repeat(se_oc[np.newaxis], len(total_tau), axis=0)
-        rate_opt_ce_hat = prelog_term[np.newaxis].T * np.repeat(se_oc_hat[np.newaxis], len(total_tau), axis=0)
+        rate_opt_ce_real = prelog_term[np.newaxis].T * np.repeat(se_oc_real[np.newaxis], len(total_tau), axis=0)
 
         ##################################################
         # Save data
@@ -141,4 +141,4 @@ if __name__ == '__main__':
                  snr_true=snr_oc,
                  snr_esti=snr_oc_hat,
                  rate=rate_opt_ce,
-                 rate_esti=rate_opt_ce_hat)
+                 rate_real=rate_opt_ce_real)
