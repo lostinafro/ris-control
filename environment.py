@@ -27,13 +27,14 @@ NOISE_POWER_dBm = -94               # [dBm]
 SIDE = 20                       # [m] side of the room
 BS_POS = np.array([[20, 5, 5]]) # Standard BS positioning
 
-T = 1/14            # [ms] time of a TTI
-N_TTIs = 140        # coherence block (10 ms)
-TX_POW_dBm = 24     # [dBm] transmit power
+NUM_PILOTS = 1          # number of pilots in a TTI
+T = 2 * 1/14            # [ms] time of a TTI
+N_TTIs = 35             # minimum coherence block (5 ms)
+TX_POW_dBm = 24         # [dBm] transmit power
 try:
-    TAU = T * np.arange(70, 3 * 140, 8.75).get()
+    TAU = T * np.arange(N_TTIs, 10 * N_TTIs + 1, 8.75).get()
 except AttributeError:
-    TAU = T * np.arange(70, 3 * 140, 8.75)
+    TAU =  T * np.arange(N_TTIs, 10 * N_TTIs + 1, 8.75)
 
 
 # Parser for the test files
