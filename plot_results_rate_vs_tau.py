@@ -10,11 +10,11 @@ rc('text', usetex=True)
 
 # Define setups
 setups = ['ob-cc', 'ib-wf']
-labels_setups = ['OB-CC', 'IB-CC']
+setups_labels = ['OB-CC', 'IB-CC']
 
 # Define paradigms
 paradigms = ['opt_ce_vs_tau_', 'cb_bsw_vs_tau_fixed_', 'cb_bsw_vs_tau_flexi_']
-colors=['black', 'blue', 'red']
+colors = ['black', 'blue', 'red']
 styles = ['-', '--', ':']
 labels = ['OPT-CE', 'CB-BSW: Fixed', 'CB-BSW: Flexible']
 
@@ -26,10 +26,10 @@ render = True
 # Define specific taus to plot
 taus = [15., 17.5, 20.]
 # define the axes for the specific taus
-plot_list = [plt.subplots(nrows=len(labels_setups)) for _ in taus]
+plot_list = [plt.subplots(nrows=len(setups_labels)) for _ in taus]
 
 # plots varying tau
-fig_me, axes_me = plt.subplots(nrows=len(labels_setups))
+fig_me, axes_me = plt.subplots(nrows=len(setups_labels))
 fig_snr, axes_snr = plt.subplots(figsize=(5, 2.5))
 fig_kpi, axes_kpi = plt.subplots()
 
@@ -69,7 +69,7 @@ for ss, setup in enumerate(setups):
         for tt, tau in enumerate(taus):
             x_, y_ = ecdf(rate[TAU == tau])
             plot_list[tt][1][ss].plot(x_, y_, linewidth=1.5, linestyle=styles[pp], label=labels[pp], color=colors[pp])
-            plot_list[tt][1][ss].set_title(labels_setups[ss])
+            plot_list[tt][1][ss].set_title(setups_labels[ss])
 
 # Printing plots
 
