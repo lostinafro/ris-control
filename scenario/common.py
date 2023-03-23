@@ -315,7 +315,7 @@ def printplot(fig: plt.Figure = None,
             filename = os.path.join(dirname, filename)
             fig.tight_layout()
             fig.savefig(filename + '.jpg', dpi=300, bbox_inches='tight')
-            tikzplotlib.save(filename + '.tex')
+            tikzplotlib.save(filename + '.tex', figure=fig)
 
 
 def std_progressbar(total_iteration, **kwargs):
