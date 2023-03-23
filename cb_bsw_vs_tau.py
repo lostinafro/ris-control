@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import scenario.common as cmn
-from environment import RisProtocolEnv, command_parser, NOISE_POWER_dBm, T, TAU, TX_POW_dBm
+from environment import RisProtocolEnv, command_parser, NOISE_POWER_dBm, T, TAU, TX_POW_dBm, NUM_PILOTS
 
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
@@ -20,13 +20,6 @@ tx_power = cmn.dbm2watt(TX_POW_dBm)
 # Get noise power
 noise_power = cmn.dbm2watt(NOISE_POWER_dBm)
 
-# Define number of pilots
-num_pilots = 1
-
-# Define minimum SNR
-minimum_snr_dB = 10
-minimum_snr = cmn.db2lin(minimum_snr_dB)
-
 # Total tau
 total_tau = TAU
 
@@ -40,7 +33,7 @@ cb_types = ['fixed', 'flexi']
 setups = ['ob-cc', 'ib-no', 'ib-wf']
 
 # For grid mesh
-num_users = int(1e3)
+num_users = int(1e4)
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
@@ -118,21 +111,22 @@ if __name__ == '__main__':
         h_eq_cb = (g_rb[np.newaxis, np.newaxis, :] * codebook[np.newaxis, :, :] * h_ur[:, np.newaxis, :]).sum(axis=-1)
 
         # Generate noise
-        var = noise_power / num_pilots
+        var = noise_power / NUM_PILOTS
         bsw_noise_ = np.sqrt(var) * noise_
 
         # Compute the measured SNR of each user when using CB scheme
-        sig_pow_cb = tx_power * np.abs(h_eq_cb) ** 2
-        sig_pow_noisy_cb = np.abs(np.sqrt(tx_power) * h_eq_cb + bsw_noise_) ** 2
+        sig_pow_cb = np.sqrt(tx_power) * h_eq_cb
+        sig_pow_noisy_cb = np.sqrt(tx_power) * h_eq_cb + bsw_noise_
 
-        snr_cb = sig_pow_cb / noise_power
-        snr_cb_hat = sig_pow_noisy_cb / noise_power
+        snr_cb = np.abs(sig_pow_cb) ** 2 / noise_power
+        snr_cb_hat = np.abs(sig_pow_noisy_cb) ** 2 / noise_power
 
         snr_cb_db = 10 * np.log10(sig_pow_cb / noise_power)
         snr_cb_hat_db = 10 * np.log10(snr_cb_hat)
 
         # Go through all users
         se_cb = np.zeros((len(total_tau), num_users))
+        se_cb_real = np.zeros((len(total_tau), num_users))
         n_configurations_flex = np.zeros((len(total_tau), num_users))
 
         for tt, tau in enumerate(total_tau):
@@ -144,12 +138,18 @@ if __name__ == '__main__':
                 if np.sum(mask) == 0:    # No configuration satisfies the KPI
                     n_configurations_flex[tt, uu] = -1
                 else:       # At least one conf satisfies the KPI
-                    # Get the index of the first occurrence
-                    index = np.argmax(mask)
+                    if cb_types == 'flexi':
+                        # Get the index of the first occurrence
+                        index = np.argmax(mask)
+                    else:
+                        # Get the index of the highest snr satisfying the constraint
+                        index = np.argmax(snr_cb_hat[uu] * mask)
 
                     # Store configuration number
                     n_configurations_flex[tt, uu] = index + 1
                     se_cb[tt, uu] = np.log2(1 + minimum_snr[tt])
+                    se_cb_real[tt, uu] = se_cb[tt, uu] if snr_cb[uu, index] > minimum_snr[tt] else 0.
+
 
         # Pre-log term
         for setup in setups:
@@ -166,14 +166,17 @@ if __name__ == '__main__':
                 prelog_term[prelog_term < 0] = 0
 
                 rate_cb_bsw = prelog_term[np.newaxis].T * se_cb
+                rate_cb_bsw_real = prelog_term[np.newaxis].T * se_cb_real
 
             else:
                 # Max function is used to remove the negative values
-                tau_alg = np.repeat((2 * n_configurations_flex[np.newaxis] - 1), len(total_tau), axis=0) * T
+                tau_alg = (2 * n_configurations_flex - 1) * T
                 prelog_term = 1 - (tau_setup + tau_setup + tau_alg) / np.repeat(total_tau[np.newaxis].T, num_users, axis=1)
                 prelog_term[(prelog_term < 0) | (tau_alg < 0)] = 0
 
                 rate_cb_bsw = prelog_term * se_cb
+                rate_cb_bsw_real = prelog_term * se_cb_real
+
 
             ##################################################
             # Save data
@@ -181,4 +184,5 @@ if __name__ == '__main__':
             np.savez(prefix + '_' + cb_type + '_' + setup + str('.npz'),
                      snr_true=snr_cb,
                      snr_esti=snr_cb_hat,
-                     rate=rate_cb_bsw)
+                     rate=rate_cb_bsw,
+                     rate_real=rate_cb_bsw_real)
