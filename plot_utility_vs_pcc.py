@@ -52,5 +52,5 @@ if __name__ == '__main__':
 
     for tt, tau in enumerate(taus):
         plot_list[tt][0].suptitle(r'Utility with $\tau =' + f'{tau:.1f}$ [ms]', fontsize=12)
-        cmn.printplot(plot_list[tt][0], plot_list[tt][1], render, filename=f'rate_cdf_tau{tau:.1f}', dirname=OUTPUT_DIR,
+        cmn.printplot(plot_list[tt][0], plot_list[tt][1], render, filename=f'utility_tau{tau:.1f}', dirname=OUTPUT_DIR,
                       labels=['$1-p_\mathrm{cc}$', '$R$ [Mbit/s]', '$R$ [Mbit/s]'], orientation='vertical')
