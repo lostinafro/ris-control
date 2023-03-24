@@ -21,7 +21,7 @@ num_points = 50
 perr = np.logspace(-3, 0, base=10, num=num_points)
 
 # Define specific taus to plot
-taus = [60., 70.]
+taus = [55., 60., 65.]
 plot_list = [plt.subplots(nrows=len(setups_labels)) for _ in taus]
 
 if __name__ == '__main__':
