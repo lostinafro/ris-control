@@ -245,7 +245,8 @@ def printplot(fig: plt.Figure = None,
               title: str or list = None,
               labels: list = None,
               grid: bool = True,
-              orientation: str = 'vertical'):
+              orientation: str = 'vertical',
+              tight_layout: bool = True):
     # Common print options with LaTeX type definitions
     rc('font', **{'family': 'sans serif', 'serif': ['Computer Modern']})
     rc('text', usetex=True)
@@ -308,12 +309,14 @@ def printplot(fig: plt.Figure = None,
         except TypeError:
             pass
         if not render:
-            fig.tight_layout()
+            if tight_layout:
+                fig.tight_layout()
             fig.show()
             plt.close(fig=fig)
         else:
             filename = os.path.join(dirname, filename)
-            fig.tight_layout()
+            if tight_layout:
+                fig.tight_layout()
             fig.savefig(filename + '.jpg', dpi=300, bbox_inches='tight')
             tikzplotlib.save(filename + '.tex', figure=fig)
 
