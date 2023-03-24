@@ -1,4 +1,5 @@
 import numpy as np
+import os
 
 import matplotlib.pyplot as plt
 
@@ -24,7 +25,7 @@ noise_power = cmn.dbm2watt(NOISE_POWER_dBm)
 total_tau = TAU
 
 # Parameter for saving datas
-prefix = 'data/cb_bsw_vs_tau'
+prefix = 'cb_bsw_vs_tau'
 
 # CB type
 cb_types = ['fixed', 'flexi']
@@ -41,7 +42,7 @@ if __name__ == '__main__':
     # help) Render bool needs to be True to save the data If no arguments are given the standard value are loaded (
     # see environment) datasavedir should be used to save numpy arrays
     render, side, name, datasavedir = command_parser()
-    prefix = prefix + name
+    prefix = os.path.join(datasavedir, prefix + name)
 
     # Build environment
     env = RisProtocolEnv(num_users=num_users, side=side)
@@ -181,8 +182,9 @@ if __name__ == '__main__':
             ##################################################
             # Save data
             ##################################################
-            np.savez(prefix + '_' + cb_type + '_' + setup + str('.npz'),
-                     snr_true=snr_cb,
-                     snr_esti=snr_cb_hat,
-                     rate=rate_cb_bsw,
-                     rate_real=rate_cb_bsw_real)
+            if render:
+                np.savez(prefix + '_' + cb_type + '_' + setup + str('.npz'),
+                         snr_true=snr_cb,
+                         snr_esti=snr_cb_hat,
+                         rate=rate_cb_bsw,
+                         rate_real=rate_cb_bsw_real)

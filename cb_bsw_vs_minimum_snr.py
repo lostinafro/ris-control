@@ -23,7 +23,10 @@ tx_power = cmn.dbm2watt(TX_POW_dBm)
 noise_power = cmn.dbm2watt(NOISE_POWER_dBm)
 
 # For grid mesh
-num_users = int(1e4)
+num_users = int(1e5)
+
+# Parameter for saving datas
+prefix = 'cb_bsw_opt_kpi'
 
 # Setup option
 setups = ['ob-cc', 'ib-wf']
@@ -38,6 +41,7 @@ if __name__ == '__main__':
     # help) Render bool needs to be True to save the data If no arguments are given the standard value are loaded (
     # see environment) datasavedir should be used to save numpy arrays
     render, side, name, datasavedir = command_parser()
+    prefix = os.path.join(datasavedir, prefix + name)
 
     # Build environment
     env = RisProtocolEnv(num_users=num_users, side=side)
@@ -138,7 +142,7 @@ if __name__ == '__main__':
 
 
     ## Varying the frame duration
-    tau_plot = [7.5, 15, 30]
+    tau_plot = [30, 60, 90]
 
     opt_kpi_flexi = np.zeros((len(TAU), len(setups)))
     opt_kpi_fixed = np.zeros((len(TAU), len(setups)))
@@ -212,7 +216,10 @@ if __name__ == '__main__':
     opt_kpi_fixed = np.mean(opt_kpi_fixed, axis=-1)
     opt_kpi_flexi = np.mean(opt_kpi_flexi, axis=-1)
 
-
-    np.savez(os.path.join(datasavedir, 'cb_bsw_opt_kpi.npz'),
-             fixed=opt_kpi_fixed,
-             flexi=opt_kpi_flexi)
+    ##################################################
+    # Save data
+    ##################################################
+    if render:
+        np.savez(prefix + str('.npz'),
+                 fixed=opt_kpi_fixed,
+                 flexi=opt_kpi_flexi)

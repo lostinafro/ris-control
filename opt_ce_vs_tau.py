@@ -1,4 +1,5 @@
 import numpy as np
+import os
 
 import matplotlib.pyplot as plt
 
@@ -27,7 +28,7 @@ total_tau = TAU
 chest_time_cost = 5
 
 # Parameter for saving datas
-prefix = 'data/opt_ce_vs_tau'
+prefix = 'opt_ce_vs_tau'
 
 # Setup option
 setups = ['ob-cc', 'ib-no', 'ib-wf']
@@ -42,7 +43,7 @@ if __name__ == '__main__':
     # help) Render bool needs to be True to save the data If no arguments are given the standard value are loaded (
     # see environment) datasavedir should be used to save numpy arrays
     render, side, name, datasavedir = command_parser()
-    prefix = prefix + name
+    prefix = os.path.join(datasavedir, prefix + name)
 
     # Build environment
     env = RisProtocolEnv(num_users=num_users, side=side)
@@ -65,17 +66,18 @@ if __name__ == '__main__':
     # Compute normalized DFT matrix
     DFT_norm = DFT / np.sqrt(env.ris.num_els)
 
-    # Plot DFT codebook matrix
-    fig, ax = plt.subplots()
+    if not render:
+        # Plot DFT codebook matrix
+        fig, ax = plt.subplots()
 
-    im = ax.imshow(DFT_norm.real)
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes("right", size="5%", pad=0.05)
-    plt.colorbar(im, cax=cax)
+        im = ax.imshow(DFT_norm.real)
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        plt.colorbar(im, cax=cax)
 
-    ax.set_title('DFT configuration matrix: $' + str(env.ris.num_els) + r'\times' + str(env.ris.num_els) + '$')
-
-    plt.tight_layout()
+        ax.set_title('DFT configuration matrix: $' + str(env.ris.num_els) + r'\times' + str(env.ris.num_els) + '$')
+        plt.tight_layout()
+        plt.show()
 
     # Get the channels:
     #   ur - user-ris
@@ -137,8 +139,9 @@ if __name__ == '__main__':
         ##################################################
         # Save data
         ##################################################
-        np.savez(prefix + '_' + setup + str('.npz'),
-                 snr_true=snr_oc,
-                 snr_esti=snr_oc_hat,
-                 rate=rate_opt_ce,
-                 rate_real=rate_opt_ce_real)
+        if render:
+            np.savez(prefix + '_' + setup + str('.npz'),
+                     snr_true=snr_oc,
+                     snr_esti=snr_oc_hat,
+                     rate=rate_opt_ce,
+                    rate_real=rate_opt_ce_real)
