@@ -8,7 +8,6 @@ except ImportError:
 
 import argparse
 from scipy.constants import speed_of_light
-from scipy.stats import rice
 
 import matplotlib.pyplot as plt
 
@@ -28,13 +27,13 @@ SIDE = 20                       # [m] side of the room
 BS_POS = np.array([[20, 5, 5]]) # Standard BS positioning
 
 NUM_PILOTS = 1          # number of pilots in a TTI
-T = 2 * 1/14            # [ms] time of a TTI
-N_TTIs = 35             # minimum coherence block (5 ms)
+T = 7 * 1/14            # [ms] time of a TTI
+N_TTIs = 20             # minimum coherence block (10 ms)
 TX_POW_dBm = 24         # [dBm] transmit power
 try:
-    TAU = T * np.arange(N_TTIs, 10 * N_TTIs + 1, 8.75).get()
+    TAU = T * np.arange(N_TTIs, 20 * N_TTIs + 1, 10).get()
 except AttributeError:
-    TAU =  T * np.arange(N_TTIs, 10 * N_TTIs + 1, 8.75)
+    TAU =  T * np.arange(N_TTIs, 20 * N_TTIs + 1, 10)
 
 
 # Parser for the test files
