@@ -43,7 +43,7 @@ t_opt = np.array([T - tau_s, T, T, T]) * 1e-3
 t_bsw = np.array([T - tau_s, T - tau_s, T, T]) * 1e-3
 
 # Define the mean snr parameter
-snr_db = np.arange(0, 31, 0.1)
+snr_db = np.arange(0, 30.1, 0.1)
 snr = cmn.db2lin(snr_db)
 
 # Target pcc
